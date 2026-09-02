@@ -10,20 +10,18 @@
 # Bypass the hook:
 #   git commit --no-verify
 
+# Run from the repository root so the prompt-file path is always correct.
+cd "$(git rev-parse --show-toplevel 2>/dev/null || .)" || exit 1
+
 # Load optional config file (sourced if it exists)
 if [ -f "$HOME/.config/rs-guard/env" ]; then
     . "$HOME/.config/rs-guard/env"
 fi
 
-# Skip if no provider API key is configured
-if [ -z "$DEEPSEEK_API_KEY" ] && \
-   [ -z "$KIMI_API_KEY" ] && \
-   [ -z "$DASHSCOPE_API_KEY" ] && \
-   [ -z "$OPENROUTER_API_KEY" ] && \
-   [ -z "$OPENAI_API_KEY" ] && \
-   [ -z "$XAI_API_KEY" ] && \
-   [ -z "$ZHIPUAI_API_KEY" ]; then
-    echo "rs-guard: No API key found in environment. Skipping AI pre-commit review."
+# The active provider in .reviewer.toml is "deepseek". If you change it,
+# update this check to match the provider's API key environment variable.
+if [ -z "$DEEPSEEK_API_KEY" ]; then
+    echo "rs-guard: DEEPSEEK_API_KEY not found in environment. Skipping AI pre-commit review."
     exit 0
 fi
 

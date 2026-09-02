@@ -22,7 +22,7 @@ Or use the helper script:
 
 Requirements:
 
-- `rs-guard` installed (`cargo install rs-guard`)
+- `rs-guard` 1.8.3 installed (`cargo install rs-guard --locked --version 1.8.3`)
 - An API key exported (e.g. `DEEPSEEK_API_KEY`) or in `~/.config/rs-guard/env`
 
 Bypass the hook when needed:
@@ -33,7 +33,9 @@ git commit --no-verify
 
 ### CI / GitHub Actions
 
-The workflow `.github/workflows/rs-guard-review.yml` runs on every non-draft pull request. It requires a `DEEPSEEK_API_KEY` repository secret.
+The workflow `.github/workflows/rs-guard-review.yml` runs on every non-draft pull request. It requires a `DEEPSEEK_API_KEY` repository secret and publishes a GitHub Check Run.
+
+> **Note:** `pull_request` workflows do not receive secrets from forks. Reviews run only for PRs from branches in this repo or for trusted collaborators.
 
 ## Configuration
 
