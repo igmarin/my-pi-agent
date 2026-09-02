@@ -5,6 +5,7 @@
  * A persistent widget shows the purpose for the rest of the session.
  * Blocks all prompts until answered. Empty/cancel re-prompts.
  * Ctrl-C is the only way to quit without a purpose.
+ * No-UI (print/JSON) skips the gate: Pi's input() is a no-op there.
  *
  * Usage: pi -e extensions/purpose-gate.ts
  */
