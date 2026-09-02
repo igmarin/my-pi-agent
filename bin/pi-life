@@ -8,7 +8,8 @@ Usage: pi-life <life> [solo|chain|team]
        pi-life doctor
        pi-life --help
 
-Lives: rust | elixir | rails | rails-python
+Lives: rust | elixir | ruby | python
+Aliases: phoenix → elixir, rails → ruby (also rails-python)
 
   solo   daily stack (default)
   chain  plan-build-review
@@ -35,6 +36,21 @@ resolve_root() {
   cd "$(dirname "${src}")/.." && pwd
 }
 
+# Canonical life name, or empty if unknown.
+canonical_life() {
+  case "${1}" in
+    rust) printf '%s\n' rust ;;
+    elixir|phoenix) printf '%s\n' elixir ;;
+    ruby|rails|rails-python) printf '%s\n' ruby ;;
+    python) printf '%s\n' python ;;
+    ecto)
+      printf 'pi-life: ecto is not a life; use elixir\n' >&2
+      return 2
+      ;;
+    *) return 1 ;;
+  esac
+}
+
 main() {
   if [[ $# -eq 0 || "${1:-}" == "-h" || "${1:-}" == "--help" || "${1:-}" == "help" ]]; then
     usage
@@ -51,28 +67,32 @@ main() {
       printf 'doctor: not implemented yet (issue #13)\n'
       exit 0
       ;;
-    rust|elixir|rails|rails-python)
-      local life="${1}"
-      local mode="${2:-solo}"
-      case "${mode}" in
-        solo|chain|team) ;;
-        *)
-          printf 'pi-life: unknown mode %s\n' "${mode}" >&2
-          usage >&2
-          exit 2
-          ;;
-      esac
-      printf 'pi-life: launch not implemented yet (life=%s mode=%s root=%s cwd=%s)\n' \
-        "${life}" "${mode}" "${root}" "${PWD}"
-      printf 'pi-life: issue #1 is help-only; launching lands with profiles (#10)\n'
-      exit 0
-      ;;
+  esac
+
+  local life status=0
+  life="$(canonical_life "${1}")" || status=$?
+  if [[ "${status}" -eq 2 ]]; then
+    exit 2
+  fi
+  if [[ "${status}" -ne 0 ]]; then
+    printf 'pi-life: unknown life %s\n' "${1}" >&2
+    usage >&2
+    exit 2
+  fi
+
+  local mode="${2:-solo}"
+  case "${mode}" in
+    solo|chain|team) ;;
     *)
-      printf 'pi-life: unknown life %s\n' "${1}" >&2
+      printf 'pi-life: unknown mode %s\n' "${mode}" >&2
       usage >&2
       exit 2
       ;;
   esac
+  printf 'pi-life: launch not implemented yet (life=%s mode=%s root=%s cwd=%s)\n' \
+    "${life}" "${mode}" "${root}" "${PWD}"
+  printf 'pi-life: issue #1 is help-only; launching lands with profiles (#10)\n'
+  exit 0
 }
 
 main "$@"

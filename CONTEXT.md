@@ -5,12 +5,18 @@ Personal Pi Coding Agent harness: pick a life, load the right extensions and ski
 ## Language
 
 **Life**:
-One of three human identities this harness launches: `rust`, `elixir`, or `rails-python`. CLI also accepts `rails` as an alias for `rails-python`.
-_Avoid_: persona, stack, role (those are narrower)
+One of four identities this harness launches: `rust`, `elixir`, `ruby`, or `python`.
+_Avoid_: persona, stack, role (those are narrower); `ecto` as a life (it is a library)
+
+CLI aliases: `phoenix` → `elixir`, `rails` → `ruby`. `rails-python` still maps to `ruby` for old muscle memory.
+
+**API pack**:
+Optional GraphQL or REST skill set loaded on a life. Not a fifth life.
+_Avoid_: calling GraphQL/REST a life
 
 **Profile**:
-Named launch config for a life: extensions, skill allowlist, tracker, provider class, model policy.
-_Avoid_: theme, preset
+Named launch config for a life: extensions, skill allowlist, tracker, provider class, model policy. Stored as YAML under `profiles/<life>.yaml`.
+_Avoid_: theme, preset; TOML for harness config
 
 **Project overlay**:
 File in the target repo (`.pi/capabilities.yaml`) that turns capabilities on or off.
@@ -41,5 +47,9 @@ Dispatcher-only mode. Primary Pi has no codebase tools.
 _Avoid_: swarm, crew
 
 **Tracker**:
-Where tickets are created. Lives 1 and 3 use `github-issue`. Life 2 uses a machine-local overlay skill for the work internal tool.
+Where tickets are created. `rust`, `ruby`, and `python` use `github-issue`. `elixir` (work) uses a machine-local overlay skill for the internal tool.
 _Avoid_: board, project (GitHub Project is a surface of the tracker)
+
+## Config format
+
+Harness-authored files (profiles, overlay, chains, damage-control rules) are **YAML**. Pi already ships a `yaml` parser for damage-control. One format, one dependency. Do not add TOML for those files.

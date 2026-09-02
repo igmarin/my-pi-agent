@@ -4,8 +4,8 @@ This repository is the **pi-life** harness: a TypeScript/Bun launcher for the Pi
 
 ## Domain glossary
 
-- **life** — a named runtime profile (`rust`, `elixir`, `rails-python`) that selects packs, mantras, and model policy.
-- **profile** — a TOML file in `profiles/<life>.toml` declaring pack allowlists, mantra skills, provider class, tracker, and model policy.
+- **life** — a named runtime profile (`rust`, `elixir`, `ruby`, `python`) that selects packs, mantras, and model policy. Aliases: `phoenix` → `elixir`, `rails` / `rails-python` → `ruby`. `ecto` is not a life. GraphQL/REST are API packs, not lives.
+- **profile** — a YAML file in `profiles/<life>.yaml` declaring pack allowlists, mantra skills, provider class, tracker, and model policy. Same YAML as overlays and damage-control rules.
 - **pack** — a directory of skills under `~/.agents/skills`. Packs are loaded with `--no-skills` then `--skill <pack>`, never flattened.
 - **mantra** — skills always loaded: `clarify`, `requirements-clarifier`, `i-have-adhd`, `ponytail`, `deslop`, `tdd`.
 - **overlay** — per-repo `.pi/capabilities.yaml` that gates tools/prompts. Missing overlay ≡ all capabilities off.

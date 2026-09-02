@@ -14,4 +14,13 @@ install:
 
 # Help-only smoke for #1 (does not launch Pi)
 smoke:
-    "{{root}}/bin/pi-life" --help
+    #!/usr/bin/env bash
+    set -euo pipefail
+    "{{root}}/bin/pi-life" --help >/dev/null
+    out="$("{{root}}/bin/pi-life" rails)"
+    [[ "${out}" == *"life=ruby"* ]]
+    out="$("{{root}}/bin/pi-life" phoenix)"
+    [[ "${out}" == *"life=elixir"* ]]
+    set +e
+    "{{root}}/bin/pi-life" ecto
+    test $? -eq 2
