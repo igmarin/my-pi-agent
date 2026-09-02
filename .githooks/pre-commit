@@ -1,0 +1,56 @@
+#!/bin/sh
+# rs-guard pre-commit hook
+#
+# Install:
+#   git config core.hooksPath .githooks
+#
+# This hook analyzes staged changes with rs-guard and aborts the commit
+# if the review returns REQUEST_CHANGES (exit code 2).
+#
+# Bypass the hook:
+#   git commit --no-verify
+
+# Load optional config file (sourced if it exists)
+if [ -f "$HOME/.config/rs-guard/env" ]; then
+    . "$HOME/.config/rs-guard/env"
+fi
+
+# Skip if no provider API key is configured
+if [ -z "$DEEPSEEK_API_KEY" ] && \
+   [ -z "$KIMI_API_KEY" ] && \
+   [ -z "$DASHSCOPE_API_KEY" ] && \
+   [ -z "$OPENROUTER_API_KEY" ] && \
+   [ -z "$OPENAI_API_KEY" ] && \
+   [ -z "$XAI_API_KEY" ] && \
+   [ -z "$ZHIPUAI_API_KEY" ]; then
+    echo "rs-guard: No API key found in environment. Skipping AI pre-commit review."
+    exit 0
+fi
+
+# Skip if rs-guard is not installed
+if ! command -v rs-guard >/dev/null 2>&1; then
+    echo "rs-guard: not found in PATH. Skipping AI pre-commit review."
+    exit 0
+fi
+
+# Skip if nothing is staged
+if git diff --cached --quiet; then
+    exit 0
+fi
+
+echo "Running rs-guard pre-commit review..."
+
+rs-guard --prompt-file .github/review-prompt.md
+EXIT_CODE=$?
+
+if [ "$EXIT_CODE" -eq 0 ]; then
+    echo "rs-guard: Review passed."
+    exit 0
+elif [ "$EXIT_CODE" -eq 2 ]; then
+    echo "rs-guard: Review requested changes. Commit aborted."
+    echo "Address the feedback above or bypass with: git commit --no-verify"
+    exit 1
+else
+    echo "rs-guard: Error occurred (exit code $EXIT_CODE). Commit aborted."
+    exit 1
+fi
