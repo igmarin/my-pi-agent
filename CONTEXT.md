@@ -8,7 +8,7 @@ Personal Pi Coding Agent harness: pick a life, load the right extensions and ski
 One of four identities this harness launches: `rust`, `elixir`, `ruby`, or `python`.
 _Avoid_: persona, stack, role (those are narrower); `ecto` as a life (it is a library)
 
-CLI aliases: `phoenix` → `elixir`, `rails` → `ruby`. `rails-python` still maps to `ruby` for old muscle memory.
+CLI aliases: `phoenix` → `elixir`, `rails` → `ruby`. `rails-python` is not a life; use `ruby` or `python`.
 
 **API pack**:
 Optional GraphQL or REST skill set loaded on a life. Not a fifth life.

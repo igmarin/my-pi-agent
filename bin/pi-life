@@ -9,7 +9,7 @@ Usage: pi-life <life> [solo|chain|team]
        pi-life --help
 
 Lives: rust | elixir | ruby | python
-Aliases: phoenix → elixir, rails → ruby (also rails-python)
+Aliases: phoenix → elixir, rails → ruby
 
   solo   daily stack (default)
   chain  plan-build-review
@@ -41,8 +41,12 @@ canonical_life() {
   case "${1}" in
     rust) printf '%s\n' rust ;;
     elixir|phoenix) printf '%s\n' elixir ;;
-    ruby|rails|rails-python) printf '%s\n' ruby ;;
+    ruby|rails) printf '%s\n' ruby ;;
     python) printf '%s\n' python ;;
+    rails-python)
+      printf 'pi-life: rails-python is not a life; use ruby or python\n' >&2
+      return 2
+      ;;
     ecto)
       printf 'pi-life: ecto is not a life; use elixir\n' >&2
       return 2
@@ -52,7 +56,16 @@ canonical_life() {
 }
 
 main() {
-  if [[ $# -eq 0 || "${1:-}" == "-h" || "${1:-}" == "--help" || "${1:-}" == "help" ]]; then
+  if [[ $# -eq 0 ]]; then
+    usage
+    exit 0
+  fi
+  if [[ "${1}" == "-h" || "${1}" == "--help" || "${1}" == "help" ]]; then
+    if [[ $# -ne 1 ]]; then
+      printf 'pi-life: unexpected argument: %s\n' "${2}" >&2
+      usage >&2
+      exit 2
+    fi
     usage
     exit 0
   fi
@@ -62,6 +75,11 @@ main() {
 
   case "${1}" in
     doctor)
+      if [[ $# -ne 1 ]]; then
+        printf 'pi-life: unexpected argument: %s\n' "${2}" >&2
+        usage >&2
+        exit 2
+      fi
       printf 'harness: %s\n' "${root}"
       printf 'cwd: %s\n' "${PWD}"
       printf 'doctor: not implemented yet (issue #13)\n' >&2
@@ -76,6 +94,12 @@ main() {
   fi
   if [[ "${status}" -ne 0 ]]; then
     printf 'pi-life: unknown life %s\n' "${1}" >&2
+    usage >&2
+    exit 2
+  fi
+
+  if [[ $# -gt 2 ]]; then
+    printf 'pi-life: unexpected argument: %s\n' "${3}" >&2
     usage >&2
     exit 2
   fi

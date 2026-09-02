@@ -16,7 +16,7 @@ pi-life rust
 pi-life doctor             # stub until #13
 ```
 
-Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` is not a life.
+Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` are not lives.
 
 Install the symlink:
 
