@@ -17,10 +17,14 @@ smoke:
     #!/usr/bin/env bash
     set -euo pipefail
     "{{root}}/bin/pi-life" --help >/dev/null
-    out="$("{{root}}/bin/pi-life" rails)"
-    [[ "${out}" == *"life=ruby"* ]]
-    out="$("{{root}}/bin/pi-life" phoenix)"
-    [[ "${out}" == *"life=elixir"* ]]
     set +e
+    out="$("{{root}}/bin/pi-life" rails 2>&1)"
+    test $? -eq 2
+    [[ "${out}" == *"life=ruby"* ]]
+    out="$("{{root}}/bin/pi-life" phoenix 2>&1)"
+    test $? -eq 2
+    [[ "${out}" == *"life=elixir"* ]]
     "{{root}}/bin/pi-life" ecto
+    test $? -eq 2
+    "{{root}}/bin/pi-life" doctor
     test $? -eq 2

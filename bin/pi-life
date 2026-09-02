@@ -64,8 +64,8 @@ main() {
     doctor)
       printf 'harness: %s\n' "${root}"
       printf 'cwd: %s\n' "${PWD}"
-      printf 'doctor: not implemented yet (issue #13)\n'
-      exit 0
+      printf 'doctor: not implemented yet (issue #13)\n' >&2
+      exit 2
       ;;
   esac
 
@@ -90,9 +90,9 @@ main() {
       ;;
   esac
   printf 'pi-life: launch not implemented yet (life=%s mode=%s root=%s cwd=%s)\n' \
-    "${life}" "${mode}" "${root}" "${PWD}"
-  printf 'pi-life: issue #1 is help-only; launching lands with profiles (#10)\n'
-  exit 0
+    "${life}" "${mode}" "${root}" "${PWD}" >&2
+  printf 'pi-life: issue #1 is help-only; launching lands with profiles (#10)\n' >&2
+  exit 2
 }
 
 main "$@"
