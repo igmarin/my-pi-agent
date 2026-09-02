@@ -20,29 +20,28 @@ export function expandArgs(template: string, args: string): string {
 }
 
 export default function (pi: ExtensionAPI) {
-	const groups = discover(process.cwd(), import.meta.url);
-	for (const g of groups) {
-		for (const cmd of g.commands) {
-			pi.registerCommand(cmd.name, {
-				description: `[${g.source}] ${cmd.description}`.slice(0, 120),
-				handler: async (args) => {
-					pi.sendUserMessage(expandArgs(cmd.content, args || ""));
-				},
-			});
-		}
-		for (const skill of g.skills) {
-			pi.registerCommand(`skill:${skill.name}`, {
-				description: `[${g.source}] ${skill.description}`.slice(0, 120),
-				handler: async (args) => {
-					const task = args?.trim();
-					pi.sendUserMessage(task ? `${skill.content}\n\nTask: ${task}` : skill.content);
-				},
-			});
-		}
-	}
-
 	pi.on("session_start", async (_event, ctx) => {
 		applyExtensionDefaults(import.meta.url, ctx);
+		const groups = discover(ctx.cwd, import.meta.url);
+		for (const g of groups) {
+			for (const cmd of g.commands) {
+				pi.registerCommand(cmd.name, {
+					description: `[${g.source}] ${cmd.description}`.slice(0, 120),
+					handler: async (args) => {
+						pi.sendUserMessage(expandArgs(cmd.content, args || ""));
+					},
+				});
+			}
+			for (const skill of g.skills) {
+				pi.registerCommand(`skill:${skill.name}`, {
+					description: `[${g.source}] ${skill.description}`.slice(0, 120),
+					handler: async (args) => {
+						const task = args?.trim();
+						pi.sendUserMessage(task ? `${skill.content}\n\nTask: ${task}` : skill.content);
+					},
+				});
+			}
+		}
 		if (!ctx.hasUI || groups.length === 0) return;
 		const lines = groups.map((g) => {
 			const bits = [

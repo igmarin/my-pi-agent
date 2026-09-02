@@ -59,7 +59,8 @@ export default function (pi: ExtensionAPI) {
 
 			const raw = args?.trim();
 			if (raw) {
-				if (raw === "default") {
+				const key = raw.toLowerCase();
+				if (key === "default" || key === "reset") {
 					applyAgent(null, ctx);
 					return;
 				}

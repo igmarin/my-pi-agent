@@ -46,7 +46,11 @@ function parseFrontmatter(raw: string): { fields: Record<string, string>; body: 
 	const fields: Record<string, string> = {};
 	for (const line of match[1].split("\n")) {
 		const idx = line.indexOf(":");
-		if (idx > 0) fields[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+		if (idx > 0) {
+			const val = line.slice(idx + 1).trim();
+			const quoted = val.length > 1 && ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")));
+			fields[line.slice(0, idx).trim()] = quoted ? val.slice(1, -1) : val;
+		}
 	}
 	return { fields, body: match[2] };
 }
@@ -133,6 +137,8 @@ function agentFromYaml(path: string, source: string): AgentDef | null {
 		const name = typeof rec.name === "string" && rec.name ? rec.name : fileName;
 		const description = typeof rec.description === "string" ? rec.description : "";
 		const body = typeof rec.body === "string" ? rec.body : typeof rec.prompt === "string" ? rec.prompt : "";
+		const hasContent = [rec.name, rec.description, rec.body, rec.prompt].some((v) => typeof v === "string" && v.trim());
+		if (!hasContent) return null;
 		return { name, description, tools: toolsOf(rec.tools), body: body.trim(), source };
 	} catch {
 		return null;
@@ -170,7 +176,9 @@ function take<T extends { name: string }>(items: T[], seen: Set<string>, key = (
 
 export function discover(cwd: string, extFileUrl: string, home = homedir()): SourceGroup[] {
 	const root = harnessRoot(extFileUrl);
-	const life = canonicalLife(process.env.PI_LIFE);
+	const rawLife = process.env.PI_LIFE;
+	const life = rawLife ? canonicalLife(rawLife) : undefined;
+	if (rawLife && !life) return []; // invalid PI_LIFE fails closed, not broad
 	const lives = life ? [life] : [...LIVES];
 	const specs: { source: string; commands?: string; skills?: string; agents: string }[] = [
 		...lives.map((l) => ({

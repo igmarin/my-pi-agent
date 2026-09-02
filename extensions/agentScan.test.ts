@@ -86,3 +86,25 @@ test("shared profiles/agents used when life dir is empty", () => {
 	expect(reviewer?.source).toBe("profiles/agents");
 	expect(reviewer?.body).toBe("SHARED");
 });
+
+test("invalid PI_LIFE fails closed: no agents, no broad scan", () => {
+	seed();
+	process.env.PI_LIFE = "rails-python";
+	expect(collectAgents(cwd, import.meta.url, home)).toEqual([]);
+	expect(discover(cwd, import.meta.url, home)).toEqual([]);
+});
+
+test("malformed agent files are skipped gracefully", () => {
+	seed();
+	writeFileSync(join(harness, "profiles/ruby/agents/broken.yaml"), "::: not yaml [");
+	const agents = collectAgents(cwd, import.meta.url, home);
+	expect(agents.find((a) => a.name === "broken")).toBeUndefined();
+	expect(agents.find((a) => a.name === "planner")).toBeDefined();
+});
+
+test("frontmatter quotes are stripped from descriptions", () => {
+	seed();
+	writeFileSync(join(cwd, ".pi/agents/quoted.md"), '---\nname: quoted\ndescription: "Runs builds"\n---\nQ\n');
+	const q = collectAgents(cwd, import.meta.url, home).find((a) => a.name === "quoted");
+	expect(q?.description).toBe("Runs builds");
+});
