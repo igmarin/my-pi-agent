@@ -92,7 +92,7 @@ read_profile() {
       for (const n of list("mantra")) console.log("mantra\t" + n);
       for (const n of list("packs")) console.log("pack\t" + n);
       const tracker = list("tracker")[0];
-      if (tracker) console.log("tracker\t" + tracker);
+      if (tracker && tracker !== "none") console.log("tracker\t" + tracker);
     ' "${file}"
   )
 }
