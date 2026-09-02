@@ -4,27 +4,22 @@ Personal [Pi](https://github.com/mariozechner/pi-coding-agent) harness. Glossary
 
 ## Launch
 
-From the **target repo**, not this one. Until #10, these print a stub and exit 2 (`--help` still exits 0):
+From the **target repo**, not this one:
 
 ```text
-pi-life ruby               # Ruby on Rails (stub)
+pi-life ruby               # Rails packs
 pi-life ruby chain
 pi-life ruby team
-pi-life python             # Python (mantra only until a pack exists)
-pi-life elixir             # Elixir/Phoenix
+pi-life python             # mantra only (pandas / FastAPI)
+pi-life elixir             # Elixir/Phoenix (no github-issue)
 pi-life rust
+pi-life --dry-run ruby     # print pi argv
 pi-life doctor             # stub until #13
 ```
 
-<<<<<<< HEAD
 Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` are not lives.
 
-Install the symlink:
-||||||| parent of 86bb70f (feat: add life profiles and skill allowlists (#10))
-`pi-life` is help-only until profiles land (#10). Install the symlink:
-=======
-`pi-life` reads `profiles/<life>.toml` and execs `pi --no-skills` plus `--skill` for each allowlisted pack/mantra path that exists under `~/.agents/skills`. Missing packs warn on stderr and still launch. `rails` is an alias for `rails-python`. Install the symlink:
->>>>>>> 86bb70f (feat: add life profiles and skill allowlists (#10))
+`pi-life` reads `profiles/<life>.yaml` and execs `pi --no-skills` plus `--skill` for each allowlisted mantra/pack path that exists under `~/.agents/skills`. Missing packs warn on stderr and still launch.
 
 ```text
 just install

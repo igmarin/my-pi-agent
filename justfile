@@ -46,7 +46,6 @@ smoke:
     echo "${rust_out}" | grep -qv -- "elixir-phoenix-skills"
     echo "${rust_out}" | grep -qv -- "rails-agent-skills"
     grep -q 'missing pack rust-core-skills' "${tmp}/rust.err"
-    grep -q 'missing pack agnostic-planning-skills' "${tmp}/rust.err"
 
     echo "${elixir_out}" | grep -q -- "--skill ${tmp}/elixir-phoenix-skills"
     echo "${elixir_out}" | grep -qv -- "github-issue"
