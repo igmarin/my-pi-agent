@@ -16,15 +16,20 @@ install:
 smoke:
     #!/usr/bin/env bash
     set -euo pipefail
-    "{{root}}/bin/pi-life" --help >/dev/null
-    set +e
-    out="$("{{root}}/bin/pi-life" rails 2>&1)"
-    test $? -eq 2
-    [[ "${out}" == *"life=ruby"* ]]
-    out="$("{{root}}/bin/pi-life" phoenix 2>&1)"
-    test $? -eq 2
-    [[ "${out}" == *"life=elixir"* ]]
-    "{{root}}/bin/pi-life" ecto
-    test $? -eq 2
-    "{{root}}/bin/pi-life" doctor
-    test $? -eq 2
+    bin="{{root}}/bin/pi-life"
+    "$bin" --help >/dev/null
+    stub() {
+      local needle="$1"; shift
+      local out status=0
+      out="$("$bin" "$@" 2>&1)" || status=$?
+      test "${status}" -eq 2
+      [[ "${out}" == *"${needle}"* ]]
+    }
+    stub 'life=ruby' rails
+    stub 'life=elixir' phoenix
+    status=0
+    "$bin" ecto >/dev/null 2>&1 || status=$?
+    test "${status}" -eq 2
+    status=0
+    "$bin" doctor >/dev/null 2>&1 || status=$?
+    test "${status}" -eq 2
