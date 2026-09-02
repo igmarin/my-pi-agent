@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# Launch a Pi harness life from the target repo (cwd). Does not launch Pi yet (#1: help only).
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: pi-life <life> [solo|chain|team]
+       pi-life doctor
+       pi-life --help
+
+Lives: rust | elixir | ruby | python
+Aliases: phoenix → elixir, rails → ruby
+
+  solo   daily stack (default)
+  chain  plan-build-review
+  team   dispatcher
+  doctor this machine + cwd overlay
+
+Harness root: MY_PI_AGENT_HOME or the directory that contains this script.
+Run from the target repo. Does not require a justfile there.
+EOF
+}
+
+resolve_root() {
+  if [[ -n "${MY_PI_AGENT_HOME:-}" ]]; then
+    printf '%s\n' "${MY_PI_AGENT_HOME}"
+    return
+  fi
+  local src="${BASH_SOURCE[0]}"
+  while [[ -L "${src}" ]]; do
+    local dir
+    dir="$(cd "$(dirname "${src}")" && pwd)"
+    src="$(readlink "${src}")"
+    [[ "${src}" != /* ]] && src="${dir}/${src}"
+  done
+  cd "$(dirname "${src}")/.." && pwd
+}
+
+# Canonical life name, or empty if unknown.
+canonical_life() {
+  case "${1}" in
+    rust) printf '%s\n' rust ;;
+    elixir|phoenix) printf '%s\n' elixir ;;
+    ruby|rails) printf '%s\n' ruby ;;
+    python) printf '%s\n' python ;;
+    rails-python)
+      printf 'pi-life: rails-python is not a life; use ruby or python\n' >&2
+      return 2
+      ;;
+    ecto)
+      printf 'pi-life: ecto is not a life; use elixir\n' >&2
+      return 2
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+main() {
+  if [[ $# -eq 0 ]]; then
+    usage
+    exit 0
+  fi
+  if [[ "${1}" == "-h" || "${1}" == "--help" || "${1}" == "help" ]]; then
+    if [[ $# -ne 1 ]]; then
+      printf 'pi-life: unexpected argument: %s\n' "${2}" >&2
+      usage >&2
+      exit 2
+    fi
+    usage
+    exit 0
+  fi
+
+  local root
+  root="$(resolve_root)"
+
+  case "${1}" in
+    doctor)
+      if [[ $# -ne 1 ]]; then
+        printf 'pi-life: unexpected argument: %s\n' "${2}" >&2
+        usage >&2
+        exit 2
+      fi
+      printf 'harness: %s\n' "${root}"
+      printf 'cwd: %s\n' "${PWD}"
+      printf 'doctor: not implemented yet (issue #13)\n' >&2
+      exit 2
+      ;;
+  esac
+
+  local life status=0
+  life="$(canonical_life "${1}")" || status=$?
+  if [[ "${status}" -eq 2 ]]; then
+    exit 2
+  fi
+  if [[ "${status}" -ne 0 ]]; then
+    printf 'pi-life: unknown life %s\n' "${1}" >&2
+    usage >&2
+    exit 2
+  fi
+
+  if [[ $# -gt 2 ]]; then
+    printf 'pi-life: unexpected argument: %s\n' "${3}" >&2
+    usage >&2
+    exit 2
+  fi
+
+  local mode="${2:-solo}"
+  case "${mode}" in
+    solo|chain|team) ;;
+    *)
+      printf 'pi-life: unknown mode %s\n' "${mode}" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+  printf 'pi-life: launch not implemented yet (life=%s mode=%s root=%s cwd=%s)\n' \
+    "${life}" "${mode}" "${root}" "${PWD}" >&2
+  printf 'pi-life: issue #1 is help-only; launching lands with profiles (#10)\n' >&2
+  exit 2
+}
+
+main "$@"

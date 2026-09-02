@@ -1,2 +1,14 @@
 #Base Gitignore
 .DS_Store
+
+node_modules/
+.env
+.env.*
+!.env.example
+.pi/agent-sessions/
+graphify-out/
+.codegraph/
+.serena/
+review-result.txt
+rs-guard-metrics.json
+.rs-guard/cache/
