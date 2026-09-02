@@ -30,6 +30,8 @@ just install
 ```text
 bun install
 just smoke
+just ext-purpose-gate   # purpose widget + context meter
+just ext-minimal        # model + 10-block context meter
 ```
 
 ## AI code review
