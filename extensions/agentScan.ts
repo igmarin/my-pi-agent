@@ -1,7 +1,7 @@
 /**
  * Discover commands, skills, and agents.
- * Order: harness profiles/<life>/agents/ (YAML), cwd .pi/agents/, then
- * .claude/.gemini/.codex (cwd, then $HOME). First-wins on name collision.
+ * Order: profiles/<life>/agents/ (YAML), shared profiles/agents/, cwd .pi/,
+ * then .claude/.gemini/.codex (cwd, then $HOME). First-wins on name collision.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";

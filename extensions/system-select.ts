@@ -1,8 +1,8 @@
 /**
  * System Select — /system picks a persona from discovered agents.
  *
- * Search: harness profiles/<life>/agents/ (YAML), cwd .pi/agents/, then
- * .claude/.gemini/.codex. First-wins on name. Selected body is prepended
+ * Search: profiles/<life>/agents/ (YAML), shared profiles/agents/, cwd .pi/agents/,
+ * then .claude/.gemini/.codex (cwd, then $HOME). First-wins on name. Body is prepended
  * to Pi's default instructions; tools restricted if the agent lists them.
  *
  * Usage: pi -e extensions/system-select.ts -e extensions/minimal.ts

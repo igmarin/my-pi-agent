@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { expandArgs } from "./cross-agent.ts";
 import { canonicalLife, collectAgents, discover } from "./agentScan.ts";
 
 const tmp = join(tmpdir(), `mpa-scan-${process.pid}`);
@@ -43,6 +44,12 @@ function seed() {
 	process.env.MY_PI_AGENT_HOME = harness;
 	process.env.PI_LIFE = "rails";
 }
+
+test("expandArgs numbered tokens are not prefix-mangled", () => {
+	expect(expandArgs("run $1 $10", "a b c d e f g h i j")).toBe("run a j");
+	expect(expandArgs("all $ARGUMENTS then $1", "x y")).toBe("all x y then x");
+	expect(expandArgs("missing $3", "only-one")).toBe("missing ");
+});
 
 test("canonicalLife aliases and rejects rails-python", () => {
 	expect(canonicalLife("rails")).toBe("ruby");

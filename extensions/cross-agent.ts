@@ -2,7 +2,8 @@
  * Cross-Agent — register commands/skills from other coding agents.
  *
  * /name from commands/*.md, /skill:name from skills/. Agents listed only.
- * Search: harness profiles/<life>/agents/, cwd .pi/, then .claude/.gemini/.codex.
+ * Search: profiles/<life>/agents, profiles/agents, cwd .pi/, then
+ * .claude/.gemini/.codex (cwd, then $HOME). First-wins on name.
  *
  * Usage: pi -e extensions/cross-agent.ts
  */
@@ -10,11 +11,12 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { applyExtensionDefaults } from "./themeMap.ts";
 import { discover } from "./agentScan.ts";
 
-function expandArgs(template: string, args: string): string {
+export function expandArgs(template: string, args: string): string {
 	const parts = args.split(/\s+/).filter(Boolean);
-	let result = template.replace(/\$ARGUMENTS|\$@/g, args);
-	for (let i = 0; i < parts.length; i++) result = result.replaceAll(`$${i + 1}`, parts[i]);
-	return result;
+	return template.replace(/\$(ARGUMENTS|@|\d+)/g, (m, key: string) => {
+		if (key === "ARGUMENTS" || key === "@") return args;
+		return parts[Number(key) - 1] ?? "";
+	});
 }
 
 export default function (pi: ExtensionAPI) {
