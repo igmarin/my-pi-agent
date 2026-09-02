@@ -2,6 +2,9 @@
  * Damage-Control (continue) — blocked tools return feedback; the turn lives.
  * Does not call ctx.abort().
  *
+ * Best-effort text matching: rm/mv with glob/expansion operands and bash write
+ * targets outside cwd are blocked (fail closed); other shell expansions may pass.
+ *
  * Usage: pi -e extensions/damage-control-continue.ts
  */
 
@@ -71,7 +74,43 @@ function commandReferencesPath(command: string, protectedPath: string): boolean 
 	return false;
 }
 
-function isPathMatch(targetPath: string, pattern: string, cwd: string): boolean {
+function stripToken(tok: string): string {
+	return tok.replace(/^['"([{]+/, "").replace(/['")\]},;]+$/, "");
+}
+
+export function bashWriteTargets(command: string): { targets: string[]; unresolvable: boolean } {
+	const targets: string[] = [];
+	let unresolvable = false;
+	const push = (raw: string) => {
+		const t = raw.replace(/^['"]|['"]$/g, "").replace(/[)&<;|].*$/, "").trim();
+		if (!t) return;
+		if (/[$`]/.test(t)) {
+			unresolvable = true;
+			return;
+		}
+		targets.push(t);
+	};
+	const res = [
+		/(?:^|[\s;(&|])(?:\d*&?>{1,2}|\d*<>|>\|)\s*(\S+)/g,
+		/(?:^|[\s;|])tee\s+(?:-a\s+)?(\S+)/g,
+		/\bof=(\S+)/g,
+	];
+	for (const re of res) {
+		let m: RegExpExecArray | null;
+		while ((m = re.exec(command))) push(m[1]);
+	}
+	return { targets, unresolvable };
+}
+
+export function expansionOperandRisk(command: string): string | null {
+	if (!/\b(?:rm|mv)\b/.test(command)) return null;
+	const unquoted = command.replace(/'(?:[^']|'')*'|"(?:[^"]|"")*"/g, " ");
+	if (/[[?*]/.test(unquoted)) return "shell expansion in rm/mv operands";
+	if (/[$`]/.test(command)) return "variable expansion in rm/mv operands";
+	return null;
+}
+
+export function isPathMatch(targetPath: string, pattern: string, cwd: string): boolean {
 	const resolvedPattern = expandTilde(pattern);
 	if (pattern.endsWith("/") || resolvedPattern.endsWith(sep)) {
 		const dir = isAbsolute(resolvedPattern) ? resolvedPattern.replace(/[/\\]+$/, "") : resolve(cwd, resolvedPattern);
@@ -80,7 +119,7 @@ function isPathMatch(targetPath: string, pattern: string, cwd: string): boolean 
 	const regexPattern = resolvedPattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
 	const regex = new RegExp(`^${regexPattern}$|^${regexPattern}/|/${regexPattern}$|/${regexPattern}/`);
 	const relativePath = relative(cwd, targetPath);
-	return regex.test(targetPath) || regex.test(relativePath) || targetPath.includes(resolvedPattern) || relativePath.includes(resolvedPattern);
+	return regex.test(targetPath) || regex.test(relativePath);
 }
 
 function harnessRoot(): string {
@@ -199,7 +238,7 @@ export default function (pi: ExtensionAPI) {
 				}
 			}
 			if (!violationReason) {
-				const tokens = command.split(/\s+/).map((t) => t.replace(/^['"]|['"]$/g, "")).filter(Boolean);
+				const tokens = command.split(/\s+/).map(stripToken).filter(Boolean);
 				for (const tok of tokens) {
 					const resolved = resolvePath(tok, ctx.cwd);
 					for (const zap of rules.zeroAccessPaths) {
@@ -210,6 +249,18 @@ export default function (pi: ExtensionAPI) {
 					}
 					if (violationReason) break;
 				}
+			}
+			if (!violationReason) {
+				const writes = bashWriteTargets(command);
+				if (writes.unresolvable) violationReason = "Bash write target is not statically resolvable";
+				for (const t of writes.targets) {
+					if (violationReason) break;
+					if (!underCwd(resolvePath(t, ctx.cwd), ctx.cwd)) violationReason = `Bash write outside cwd: ${t}`;
+				}
+			}
+			if (!violationReason) {
+				const risk = expansionOperandRisk(command);
+				if (risk) violationReason = `Bash ${risk}; restate with explicit paths`;
 			}
 			if (!violationReason) {
 				const hasDeleteOrMove = /\brm\b/.test(command) || /\bmv\b/.test(command);

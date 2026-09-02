@@ -137,6 +137,24 @@ smoke:
       if (hit("git status")) { console.error("false positive: git status"); process.exit(1); }
       if (!r.noDeletePaths?.includes(".git")) { console.error("expected noDeletePaths .git"); process.exit(1); }
     '
+    bun -e '
+      import { isPathMatch, bashWriteTargets, expansionOperandRisk } from "./extensions/damage-control-continue.ts";
+      import { resolve } from "node:path";
+      const cwd = process.cwd();
+      const m = (p, pat) => isPathMatch(resolve(cwd, p), pat, cwd);
+      if (m("/work/docs-archive/file", "docs")) { console.error("docs matched docs-archive"); process.exit(1); }
+      if (!m(cwd + "/docs/file", "docs/")) { console.error("dir pattern failed"); process.exit(1); }
+      if (!m(cwd + "/.env", ".env")) { console.error(".env not matched"); process.exit(1); }
+      if (!bashWriteTargets("echo data > /tmp/damage-control-test").targets.includes("/tmp/damage-control-test")) { console.error("redir target missed"); process.exit(1); }
+      if (bashWriteTargets("echo hi > ./ok.txt").targets.length !== 1) { console.error("cwd target missed"); process.exit(1); }
+      if (!bashWriteTargets("gzip -c .env | tee /tmp/out").targets.includes("/tmp/out")) { console.error("tee target missed"); process.exit(1); }
+      if (!bashWriteTargets("dd if=a of=$UNSET").unresolvable) { console.error("unresolvable not flagged"); process.exit(1); }
+      if (!expansionOperandRisk("rm -rf .g[it]")) { console.error("bracket rm not flagged"); process.exit(1); }
+      if (!expansionOperandRisk("rm -rf \"$DIR\"")) { console.error("var rm not flagged"); process.exit(1); }
+      if (expansionOperandRisk("rm -rf build/cache")) { console.error("plain rm flagged"); process.exit(1); }
+      if (expansionOperandRisk("git mv a b")) { console.error("git mv flagged"); process.exit(1); }
+      console.log("damage-control unit checks ok");
+    '
 
 # Harness-dev: damage-control-continue (does not launch via pi-life)
 ext-damage-control:
