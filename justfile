@@ -82,6 +82,36 @@ smoke:
     test "${status}" -eq 2
     grep -q 'missing required mantra' "${tmp}/empty.err"
     rm -rf "${empty}"
+
+    notrack="$(mktemp -d)"
+    for name in i-have-adhd ponytail ponytail-review deslop clarify requirements-clarifier tdd; do
+      mkdir -p "${notrack}/${name}"
+      printf '%s\n' "# ${name}" >"${notrack}/${name}/SKILL.md"
+    done
+    status=0
+    PI_SKILLS_HOME="${notrack}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/notrack.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'missing required tracker' "${tmp}/notrack.err"
+    rm -rf "${notrack}"
+
+    none="$(mktemp -d)"
+    mkdir -p "${none}/profiles"
+    printf '%s\n' 'life: python' 'tracker: none' 'packs: []' 'mantra: [i-have-adhd]' >"${none}/profiles/python.yaml"
+    mkdir -p "${tmp}/skills-no-tracker/i-have-adhd"
+    printf '%s\n' '# i-have-adhd' >"${tmp}/skills-no-tracker/i-have-adhd/SKILL.md"
+    none_out="$(MY_PI_AGENT_HOME="${none}" PI_SKILLS_HOME="${tmp}/skills-no-tracker" "${bin}" --dry-run python 2>"${tmp}/none.err")"
+    echo "${none_out}" | grep -q -- "--skill ${tmp}/skills-no-tracker/i-have-adhd"
+    ! grep -E -- '--skill [^[:space:]]+/none([[:space:]]|$)' <<<"${none_out}"
+    rm -rf "${none}"
+
+    badmap="$(mktemp -d)"
+    mkdir -p "${badmap}/profiles"
+    printf '%s\n' 'life: python' 'tracker: github-issue' 'packs: {bad: true}' 'mantra: [i-have-adhd]' >"${badmap}/profiles/python.yaml"
+    status=0
+    MY_PI_AGENT_HOME="${badmap}" PI_SKILLS_HOME="${tmp}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/badmap.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'must be a string or list of strings' "${tmp}/badmap.err"
+    rm -rf "${badmap}"
     status=0
     "${bin}" ecto >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2

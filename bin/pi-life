@@ -63,7 +63,7 @@ read_profile() {
     cd "${root}"
     bun -e '
       import { parse } from "yaml";
-      import { readFileSync } from "fs";
+      import { readFileSync } from "node:fs";
       let doc;
       try {
         doc = parse(readFileSync(process.argv[1], "utf8"));
@@ -78,12 +78,21 @@ read_profile() {
       const list = (k) => {
         const v = doc[k];
         if (v == null) return [];
-        return (Array.isArray(v) ? v : [v]).map(String).filter(Boolean);
+        const arr = Array.isArray(v) ? v : [v];
+        const out = [];
+        for (const item of arr) {
+          if (typeof item !== "string") {
+            console.error("pi-life: invalid profile YAML: " + k + " must be a string or list of strings");
+            process.exit(2);
+          }
+          if (item) out.push(item);
+        }
+        return out;
       };
       for (const n of list("mantra")) console.log("mantra\t" + n);
       for (const n of list("packs")) console.log("pack\t" + n);
       const tracker = list("tracker")[0];
-      if (tracker) console.log("tracker\t" + tracker);
+      if (tracker && tracker !== "none") console.log("tracker\t" + tracker);
     ' "${file}"
   )
 }
