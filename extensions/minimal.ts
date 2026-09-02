@@ -24,7 +24,7 @@ export default function (pi: ExtensionAPI) {
 				const pct = typeof raw === "number" && Number.isFinite(raw)
 					? Math.min(100, Math.max(0, raw))
 					: 0;
-				const filled = Math.min(10, Math.max(0, Math.floor(pct / 10)));
+				const filled = Math.floor(pct / 10);
 				const bar = "#".repeat(filled) + "-".repeat(10 - filled);
 
 				const left = theme.fg("dim", ` ${model}`);
