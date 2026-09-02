@@ -15,7 +15,7 @@ Optional GraphQL or REST skill set loaded on a life. Not a fifth life.
 _Avoid_: calling GraphQL/REST a life
 
 **Profile**:
-Named launch config for a life: extensions, skill allowlist, tracker, provider class, model policy. Stored as YAML under `profiles/<life>.yaml`. `pi-life` always starts Pi with `--no-skills`, then `--skill` for each allowlisted mantra, pack, and tracker. Invalid YAML and missing mantra/tracker paths fail closed (exit 2). `tracker: none` (or omitting tracker, as elixir does) means no tracker skill. Missing packs warn and still launch.
+Named launch config for a life: extensions, skill allowlist, tracker, provider class, model policy. Stored as YAML under `profiles/<life>.yaml`. `pi-life` always starts Pi with `--no-skills`, then `--skill` for each allowlisted mantra, pack, and tracker. Invalid YAML fails closed (exit 2). A missing mantra path, or a missing path for a configured tracker, fails closed. Omitting tracker or `tracker: none` (elixir omits tracker) loads no tracker skill. Missing packs warn and still launch.
 _Avoid_: theme, preset; TOML for harness config
 
 **Project overlay**:
