@@ -48,9 +48,8 @@ smoke:
     status=0
     "$bin" doctor extra >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
-    test -f "{{root}}/extensions/purpose-gate.ts"
-    test -f "{{root}}/extensions/minimal.ts"
-    test -f "{{root}}/extensions/themeMap.ts"
+    bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
+      --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
 
 # Harness-dev: model name + 10-block context meter
 ext-minimal:

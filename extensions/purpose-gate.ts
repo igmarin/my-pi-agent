@@ -1,35 +1,17 @@
 /**
  * Purpose Gate — Forces the engineer to declare intent before working
  *
- * On session start, immediately asks "What is the purpose of this agent?"
- * via a text input dialog. A persistent widget shows the purpose for the
- * rest of the session, keeping focus. Blocks all prompts until answered.
+ * On session start, asks "What is the purpose of this agent?"
+ * A persistent widget shows the purpose for the rest of the session.
+ * Blocks all prompts until answered. Empty/cancel re-prompts.
+ * Ctrl-C is the only way to quit without a purpose.
  *
  * Usage: pi -e extensions/purpose-gate.ts
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Text, truncateToWidth } from "@mariozechner/pi-tui";
+import { truncateToWidth } from "@mariozechner/pi-tui";
 import { applyExtensionDefaults } from "./themeMap.ts";
-
-// synthwave: bgWarm #4a1e6a → rgb(74,30,106)
-function bg(s: string): string {
-	return `\x1b[48;2;74;30;106m${s}\x1b[49m`;
-}
-
-// synthwave: pink #ff7edb
-function pink(s: string): string {
-	return `\x1b[38;2;255;126;219m${s}\x1b[39m`;
-}
-
-// synthwave: cyan #36f9f6
-function cyan(s: string): string {
-	return `\x1b[38;2;54;249;246m${s}\x1b[39m`;
-}
-
-function bold(s: string): string {
-	return `\x1b[1m${s}\x1b[22m`;
-}
 
 export default function (pi: ExtensionAPI) {
 	let purpose: string | undefined;
@@ -44,17 +26,17 @@ export default function (pi: ExtensionAPI) {
 			if (answer && answer.trim()) {
 				purpose = answer.trim();
 			} else {
-				ctx.ui.notify("Purpose is required.", "warning");
+				ctx.ui.notify("Purpose is required. Ctrl-C to quit.", "warning");
 			}
 		}
 
-		ctx.ui.setWidget("purpose", () => {
+		ctx.ui.setWidget("purpose", (_tui: unknown, theme: { fg: (k: string, s: string) => string; bold: (s: string) => string }) => {
 			return {
 				render(width: number): string[] {
-					const pad = bg(" ".repeat(width));
-					const label = pink(bold("  PURPOSE: "));
-					const msg = cyan(bold(purpose!));
-					const content = bg(truncateToWidth(label + msg + " ".repeat(width), width, ""));
+					const pad = " ".repeat(width);
+					const label = theme.fg("accent", theme.bold("  PURPOSE: "));
+					const msg = theme.fg("text", theme.bold(purpose!));
+					const content = truncateToWidth(label + msg + " ".repeat(width), width, "");
 					return [pad, content, pad];
 				},
 				invalidate() {},

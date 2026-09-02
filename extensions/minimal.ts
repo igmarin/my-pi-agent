@@ -19,8 +19,11 @@ export default function (pi: ExtensionAPI) {
 			render(width: number): string[] {
 				const model = ctx.model?.id || "no-model";
 				const usage = ctx.getContextUsage();
-				const pct = (usage && usage.percent !== null) ? usage.percent : 0;
-				const filled = Math.round(pct / 10);
+				const raw = usage?.percent;
+				const pct = typeof raw === "number" && Number.isFinite(raw)
+					? Math.min(100, Math.max(0, raw))
+					: 0;
+				const filled = Math.min(10, Math.max(0, Math.round(pct / 10)));
 				const bar = "#".repeat(filled) + "-".repeat(10 - filled);
 
 				const left = theme.fg("dim", ` ${model}`);
