@@ -56,33 +56,42 @@ canonical_life() {
   esac
 }
 
-# Top-level YAML strings for a key (scalar or sequence). Uses bun + yaml.
-yaml_strings() {
-  local file="$1" key="$2" root="$3"
+# One Bun parse. Prints "kind<TAB>name" rows. Exit 2 on invalid YAML.
+read_profile() {
+  local file="$1" root="$2"
   (
     cd "${root}"
     bun -e '
       import { parse } from "yaml";
       import { readFileSync } from "fs";
-      const doc = parse(readFileSync(process.argv[1], "utf8")) ?? {};
-      const v = doc[process.argv[2]];
-      if (v == null) process.exit(0);
-      const arr = Array.isArray(v) ? v : [v];
-      for (const x of arr) {
-        if (x != null && String(x) !== "") console.log(String(x));
+      let doc;
+      try {
+        doc = parse(readFileSync(process.argv[1], "utf8"));
+      } catch (e) {
+        console.error("pi-life: invalid profile YAML: " + (e instanceof Error ? e.message : String(e)));
+        process.exit(2);
       }
-    ' "${file}" "${key}"
+      if (doc == null || typeof doc !== "object" || Array.isArray(doc)) {
+        console.error("pi-life: invalid profile YAML: expected a mapping");
+        process.exit(2);
+      }
+      const list = (k) => {
+        const v = doc[k];
+        if (v == null) return [];
+        return (Array.isArray(v) ? v : [v]).map(String).filter(Boolean);
+      };
+      for (const n of list("mantra")) console.log("mantra\t" + n);
+      for (const n of list("packs")) console.log("pack\t" + n);
+      const tracker = list("tracker")[0];
+      if (tracker) console.log("tracker\t" + tracker);
+    ' "${file}"
   )
 }
 
-warn_missing() {
-  local kind="$1" name="$2" path="$3"
-  printf 'pi-life: warning: missing %s %s (%s)\n' "${kind}" "${name}" "${path}" >&2
-}
-
 # Globals: skill_names, pi_args
+# required=1 fail closed; required=0 warn and continue
 add_named_skill() {
-  local kind="$1" name="$2" skills_home="$3"
+  local required="$1" kind="$2" name="$3" skills_home="$4"
   [[ -z "${name}" ]] && return 0
   case " ${skill_names} " in
     *" ${name} "*) return 0 ;;
@@ -92,17 +101,13 @@ add_named_skill() {
   local path="${skills_home}/${name}"
   if [[ -e "${path}" ]]; then
     pi_args+=(--skill "${path}")
-  else
-    warn_missing "${kind}" "${name}" "${path}"
+    return 0
   fi
-}
-
-load_list() {
-  local kind="$1" file="$2" key="$3" skills_home="$4" root="$5"
-  local name
-  while IFS= read -r name; do
-    add_named_skill "${kind}" "${name}" "${skills_home}"
-  done < <(yaml_strings "${file}" "${key}" "${root}")
+  if [[ "${required}" -eq 1 ]]; then
+    printf 'pi-life: missing required %s %s (%s)\n' "${kind}" "${name}" "${path}" >&2
+    exit 2
+  fi
+  printf 'pi-life: warning: missing %s %s (%s)\n' "${kind}" "${name}" "${path}" >&2
 }
 
 launch_life() {
@@ -122,15 +127,17 @@ launch_life() {
   skill_names=""
   pi_args=(--no-skills)
 
-  load_list skill "${profile}" "mantra" "${skills_home}" "${root}"
-  load_list pack "${profile}" "packs" "${skills_home}" "${root}"
-
-  local tracker=""
-  tracker="$(yaml_strings "${profile}" "tracker" "${root}" | head -n 1 || true)"
-  case "${tracker}" in
-    "" | none) ;;
-    *) add_named_skill skill "${tracker}" "${skills_home}" ;;
-  esac
+  local rows
+  rows="$(read_profile "${profile}" "${root}")" || exit 2
+  local kind name
+  while IFS=$'\t' read -r kind name; do
+    [[ -z "${kind}" ]] && continue
+    case "${kind}" in
+      mantra) add_named_skill 1 mantra "${name}" "${skills_home}" ;;
+      pack) add_named_skill 0 pack "${name}" "${skills_home}" ;;
+      tracker) add_named_skill 1 tracker "${name}" "${skills_home}" ;;
+    esac
+  done <<<"${rows}"
 
   export MY_PI_AGENT_HOME="${root}"
   export PI_LIFE="${life}"
@@ -215,7 +222,10 @@ main() {
 
   local mode="${2:-solo}"
   case "${mode}" in
-    solo|chain|team) ;;
+    solo) ;;
+    chain|team)
+      printf 'pi-life: %s is accepted but not wired yet (#6/#8); using solo skill allowlist\n' "${mode}" >&2
+      ;;
     *)
       printf 'pi-life: unknown mode %s\n' "${mode}" >&2
       usage >&2
