@@ -16,9 +16,15 @@ pi-life rust
 pi-life doctor             # stub until #13
 ```
 
+<<<<<<< HEAD
 Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` are not lives.
 
 Install the symlink:
+||||||| parent of 86bb70f (feat: add life profiles and skill allowlists (#10))
+`pi-life` is help-only until profiles land (#10). Install the symlink:
+=======
+`pi-life` reads `profiles/<life>.toml` and execs `pi --no-skills` plus `--skill` for each allowlisted pack/mantra path that exists under `~/.agents/skills`. Missing packs warn on stderr and still launch. `rails` is an alias for `rails-python`. Install the symlink:
+>>>>>>> 86bb70f (feat: add life profiles and skill allowlists (#10))
 
 ```text
 just install

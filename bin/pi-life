@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Launch a Pi harness life from the target repo (cwd). Does not launch Pi yet (#1: help only).
+# Launch a Pi harness life from the target repo (cwd).
+# INV-skills: always --no-skills, then --skill for allowlisted paths only.
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: pi-life <life> [solo|chain|team]
+Usage: pi-life [--dry-run] <life> [solo|chain|team]
        pi-life doctor
        pi-life --help
 
@@ -17,6 +18,7 @@ Aliases: phoenix → elixir, rails → ruby
   doctor this machine + cwd overlay
 
 Harness root: MY_PI_AGENT_HOME or the directory that contains this script.
+Skills root: PI_SKILLS_HOME or ~/.agents/skills.
 Run from the target repo. Does not require a justfile there.
 EOF
 }
@@ -36,7 +38,6 @@ resolve_root() {
   cd "$(dirname "${src}")/.." && pwd
 }
 
-# Canonical life name, or empty if unknown.
 canonical_life() {
   case "${1}" in
     rust) printf '%s\n' rust ;;
@@ -55,7 +56,115 @@ canonical_life() {
   esac
 }
 
+# Top-level YAML strings for a key (scalar or sequence). Uses bun + yaml.
+yaml_strings() {
+  local file="$1" key="$2" root="$3"
+  (
+    cd "${root}"
+    bun -e '
+      import { parse } from "yaml";
+      import { readFileSync } from "fs";
+      const doc = parse(readFileSync(process.argv[1], "utf8")) ?? {};
+      const v = doc[process.argv[2]];
+      if (v == null) process.exit(0);
+      const arr = Array.isArray(v) ? v : [v];
+      for (const x of arr) {
+        if (x != null && String(x) !== "") console.log(String(x));
+      }
+    ' "${file}" "${key}"
+  )
+}
+
+warn_missing() {
+  local kind="$1" name="$2" path="$3"
+  printf 'pi-life: warning: missing %s %s (%s)\n' "${kind}" "${name}" "${path}" >&2
+}
+
+# Globals: skill_names, pi_args
+add_named_skill() {
+  local kind="$1" name="$2" skills_home="$3"
+  [[ -z "${name}" ]] && return 0
+  case " ${skill_names} " in
+    *" ${name} "*) return 0 ;;
+  esac
+  skill_names="${skill_names} ${name}"
+
+  local path="${skills_home}/${name}"
+  if [[ -e "${path}" ]]; then
+    pi_args+=(--skill "${path}")
+  else
+    warn_missing "${kind}" "${name}" "${path}"
+  fi
+}
+
+load_list() {
+  local kind="$1" file="$2" key="$3" skills_home="$4" root="$5"
+  local name
+  while IFS= read -r name; do
+    add_named_skill "${kind}" "${name}" "${skills_home}"
+  done < <(yaml_strings "${file}" "${key}" "${root}")
+}
+
+launch_life() {
+  local root="$1" life="$2" mode="$3" dry_run="$4"
+  local profile="${root}/profiles/${life}.yaml"
+  if [[ ! -f "${profile}" ]]; then
+    printf 'pi-life: missing profile %s\n' "${profile}" >&2
+    exit 2
+  fi
+
+  if ! command -v bun >/dev/null 2>&1; then
+    printf 'pi-life: bun not found on PATH (needed to read YAML profiles)\n' >&2
+    exit 2
+  fi
+
+  local skills_home="${PI_SKILLS_HOME:-${HOME}/.agents/skills}"
+  skill_names=""
+  pi_args=(--no-skills)
+
+  load_list skill "${profile}" "mantra" "${skills_home}" "${root}"
+  load_list pack "${profile}" "packs" "${skills_home}" "${root}"
+
+  local tracker=""
+  tracker="$(yaml_strings "${profile}" "tracker" "${root}" | head -n 1 || true)"
+  case "${tracker}" in
+    "" | none) ;;
+    *) add_named_skill skill "${tracker}" "${skills_home}" ;;
+  esac
+
+  export MY_PI_AGENT_HOME="${root}"
+  export PI_LIFE="${life}"
+  export PI_LIFE_MODE="${mode}"
+
+  if [[ "${dry_run}" -eq 1 ]]; then
+    printf 'pi'
+    local arg
+    for arg in "${pi_args[@]}"; do
+      printf ' %q' "${arg}"
+    done
+    printf '\n'
+    return 0
+  fi
+
+  if ! command -v pi >/dev/null 2>&1; then
+    printf 'pi-life: pi not found on PATH\n' >&2
+    exit 127
+  fi
+
+  exec pi "${pi_args[@]}"
+}
+
 main() {
+  local dry_run=0
+  case "${PI_LIFE_DRY_RUN:-}" in
+    1 | true | yes) dry_run=1 ;;
+  esac
+
+  if [[ "${1:-}" == "--dry-run" ]]; then
+    dry_run=1
+    shift
+  fi
+
   if [[ $# -eq 0 ]]; then
     usage
     exit 0
@@ -113,10 +222,8 @@ main() {
       exit 2
       ;;
   esac
-  printf 'pi-life: launch not implemented yet (life=%s mode=%s root=%s cwd=%s)\n' \
-    "${life}" "${mode}" "${root}" "${PWD}" >&2
-  printf 'pi-life: issue #1 is help-only; launching lands with profiles (#10)\n' >&2
-  exit 2
+
+  launch_life "${root}" "${life}" "${mode}" "${dry_run}"
 }
 
 main "$@"
