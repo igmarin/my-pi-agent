@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Launch a Pi harness life from the target repo (cwd). Does not launch Pi yet (#1: help only).
+# Launch a Pi harness life from the target repo (cwd).
+# INV-skills: always --no-skills, then --skill for allowlisted paths only.
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: pi-life <life> [solo|chain|team]
+Usage: pi-life [--dry-run] <life> [solo|chain|team]
        pi-life doctor
        pi-life --help
 
@@ -17,6 +18,7 @@ Aliases: phoenix → elixir, rails → ruby
   doctor this machine + cwd overlay
 
 Harness root: MY_PI_AGENT_HOME or the directory that contains this script.
+Skills root: PI_SKILLS_HOME or ~/.agents/skills.
 Run from the target repo. Does not require a justfile there.
 EOF
 }
@@ -36,7 +38,6 @@ resolve_root() {
   cd "$(dirname "${src}")/.." && pwd
 }
 
-# Canonical life name, or empty if unknown.
 canonical_life() {
   case "${1}" in
     rust) printf '%s\n' rust ;;
@@ -55,7 +56,127 @@ canonical_life() {
   esac
 }
 
+# One Bun parse. Prints "kind<TAB>name" rows. Exit 2 on invalid YAML.
+read_profile() {
+  local file="$1" root="$2"
+  (
+    cd "${root}"
+    bun -e '
+      import { parse } from "yaml";
+      import { readFileSync } from "node:fs";
+      let doc;
+      try {
+        doc = parse(readFileSync(process.argv[1], "utf8"));
+      } catch (e) {
+        console.error("pi-life: invalid profile YAML: " + (e instanceof Error ? e.message : String(e)));
+        process.exit(2);
+      }
+      if (doc == null || typeof doc !== "object" || Array.isArray(doc)) {
+        console.error("pi-life: invalid profile YAML: expected a mapping");
+        process.exit(2);
+      }
+      const list = (k) => {
+        const v = doc[k];
+        if (v == null) return [];
+        const arr = Array.isArray(v) ? v : [v];
+        const out = [];
+        for (const item of arr) {
+          if (typeof item !== "string") {
+            console.error("pi-life: invalid profile YAML: " + k + " must be a string or list of strings");
+            process.exit(2);
+          }
+          if (item) out.push(item);
+        }
+        return out;
+      };
+      for (const n of list("mantra")) console.log("mantra\t" + n);
+      for (const n of list("packs")) console.log("pack\t" + n);
+      const tracker = list("tracker")[0];
+      if (tracker && tracker !== "none") console.log("tracker\t" + tracker);
+    ' "${file}"
+  )
+}
+
+# Globals: skill_names, pi_args
+# required=1 fail closed; required=0 warn and continue
+add_named_skill() {
+  local required="$1" kind="$2" name="$3" skills_home="$4"
+  [[ -z "${name}" ]] && return 0
+  case " ${skill_names} " in
+    *" ${name} "*) return 0 ;;
+  esac
+  skill_names="${skill_names} ${name}"
+
+  local path="${skills_home}/${name}"
+  if [[ -e "${path}" ]]; then
+    pi_args+=(--skill "${path}")
+    return 0
+  fi
+  if [[ "${required}" -eq 1 ]]; then
+    printf 'pi-life: missing required %s %s (%s)\n' "${kind}" "${name}" "${path}" >&2
+    exit 2
+  fi
+  printf 'pi-life: warning: missing %s %s (%s)\n' "${kind}" "${name}" "${path}" >&2
+}
+
+launch_life() {
+  local root="$1" life="$2" mode="$3" dry_run="$4"
+  local profile="${root}/profiles/${life}.yaml"
+  if [[ ! -f "${profile}" ]]; then
+    printf 'pi-life: missing profile %s\n' "${profile}" >&2
+    exit 2
+  fi
+
+  if ! command -v bun >/dev/null 2>&1; then
+    printf 'pi-life: bun not found on PATH (needed to read YAML profiles)\n' >&2
+    exit 2
+  fi
+
+  local skills_home="${PI_SKILLS_HOME:-${HOME}/.agents/skills}"
+  skill_names=""
+  pi_args=(--no-skills)
+
+  local rows
+  rows="$(read_profile "${profile}" "${root}")" || exit 2
+  local kind name
+  while IFS=$'\t' read -r kind name; do
+    [[ -z "${kind}" ]] && continue
+    case "${kind}" in
+      mantra) add_named_skill 1 mantra "${name}" "${skills_home}" ;;
+      pack) add_named_skill 0 pack "${name}" "${skills_home}" ;;
+      tracker) add_named_skill 1 tracker "${name}" "${skills_home}" ;;
+    esac
+  done <<<"${rows}"
+
+  export MY_PI_AGENT_HOME="${root}"
+  export PI_LIFE="${life}"
+  export PI_LIFE_MODE="${mode}"
+
+  if [[ "${dry_run}" -eq 1 ]]; then
+    printf 'pi'
+    local arg
+    for arg in "${pi_args[@]}"; do
+      printf ' %q' "${arg}"
+    done
+    printf '\n'
+    return 0
+  fi
+
+  if ! command -v pi >/dev/null 2>&1; then
+    printf 'pi-life: pi not found on PATH\n' >&2
+    exit 127
+  fi
+
+  exec pi "${pi_args[@]}"
+}
+
 main() {
+  local dry_run=0
+  if [[ "${1:-}" == "--dry-run" ]]; then
+    dry_run=1
+    shift
+  fi
+
   if [[ $# -eq 0 ]]; then
     usage
     exit 0
@@ -106,17 +227,18 @@ main() {
 
   local mode="${2:-solo}"
   case "${mode}" in
-    solo|chain|team) ;;
+    solo) ;;
+    chain|team)
+      printf 'pi-life: %s is accepted but not wired yet (#6/#8); using solo skill allowlist\n' "${mode}" >&2
+      ;;
     *)
       printf 'pi-life: unknown mode %s\n' "${mode}" >&2
       usage >&2
       exit 2
       ;;
   esac
-  printf 'pi-life: launch not implemented yet (life=%s mode=%s root=%s cwd=%s)\n' \
-    "${life}" "${mode}" "${root}" "${PWD}" >&2
-  printf 'pi-life: issue #1 is help-only; launching lands with profiles (#10)\n' >&2
-  exit 2
+
+  launch_life "${root}" "${life}" "${mode}" "${dry_run}"
 }
 
 main "$@"

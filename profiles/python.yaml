@@ -1,0 +1,16 @@
+# python life (pandas / FastAPI). No invented Python pack; mantra only until one exists.
+life: python
+provider_class: personal
+tracker: github-issue
+packs: []
+mantra:
+  - i-have-adhd
+  - ponytail
+  - ponytail-review
+  - deslop
+  - clarify
+  - requirements-clarifier
+  - tdd
+models:
+  planner_thinking: xhigh
+  builder_thinking: low

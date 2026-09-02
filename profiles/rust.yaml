@@ -1,0 +1,19 @@
+# rust life. Packs are allowlists under ~/.agents/skills; not vendored here.
+life: rust
+provider_class: personal
+tracker: github-issue
+packs:
+  - agnostic-planning-skills
+  - rust-core-skills
+mantra:
+  - i-have-adhd
+  - ponytail
+  - ponytail-review
+  - deslop
+  - clarify
+  - requirements-clarifier
+  - tdd
+# Model policy placeholders (#15 boot TUI). Not applied at launch yet.
+models:
+  planner_thinking: xhigh
+  builder_thinking: low

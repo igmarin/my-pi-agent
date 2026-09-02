@@ -4,21 +4,22 @@ Personal [Pi](https://github.com/mariozechner/pi-coding-agent) harness. Glossary
 
 ## Launch
 
-From the **target repo**, not this one. Until #10, these print a stub and exit 2 (`--help` still exits 0):
+From the **target repo**, not this one:
 
 ```text
-pi-life ruby               # Ruby on Rails (stub)
+pi-life ruby               # Rails packs
 pi-life ruby chain
 pi-life ruby team
-pi-life python             # Python (mantra only until a pack exists)
-pi-life elixir             # Elixir/Phoenix
+pi-life python             # mantra only (pandas / FastAPI)
+pi-life elixir             # Elixir/Phoenix (no github-issue)
 pi-life rust
+pi-life --dry-run ruby     # print pi argv
 pi-life doctor             # stub until #13
 ```
 
 Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` are not lives.
 
-Install the symlink:
+`pi-life` loads `profiles/<life>.yaml` (`--no-skills` then allowlisted `--skill`). Invalid YAML, a missing mantra path, or a missing configured tracker path exits 2. Omit tracker = no tracker. Missing packs warn. `chain`/`team` use the solo allowlist until #6/#8.
 
 ```text
 just install
