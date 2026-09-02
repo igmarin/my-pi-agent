@@ -18,6 +18,7 @@ interface Rule {
 	pattern: string;
 	reason: string;
 	ask?: boolean;
+	re: RegExp;
 }
 
 interface Rules {
@@ -72,9 +73,9 @@ function commandReferencesPath(command: string, protectedPath: string): boolean 
 
 function isPathMatch(targetPath: string, pattern: string, cwd: string): boolean {
 	const resolvedPattern = expandTilde(pattern);
-	if (resolvedPattern.endsWith("/")) {
-		const absolutePattern = isAbsolute(resolvedPattern) ? resolvedPattern : resolve(cwd, resolvedPattern);
-		return targetPath.startsWith(absolutePattern);
+	if (pattern.endsWith("/") || resolvedPattern.endsWith(sep)) {
+		const dir = isAbsolute(resolvedPattern) ? resolvedPattern.replace(/[/\\]+$/, "") : resolve(cwd, resolvedPattern);
+		return targetPath === dir || targetPath.startsWith(dir + sep);
 	}
 	const regexPattern = resolvedPattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
 	const regex = new RegExp(`^${regexPattern}$|^${regexPattern}/|/${regexPattern}$|/${regexPattern}/`);
@@ -92,10 +93,10 @@ function parseRulesFile(rulesPath: string): Rules {
 	if (loaded == null || typeof loaded !== "object" || Array.isArray(loaded)) {
 		throw new Error("expected a mapping");
 	}
-	const bashToolPatterns = loaded.bashToolPatterns || [];
-	for (const rule of bashToolPatterns) {
-		new RegExp(rule.pattern);
-	}
+	const bashToolPatterns = (loaded.bashToolPatterns || []).map((rule) => ({
+		...rule,
+		re: new RegExp(rule.pattern),
+	}));
 	return {
 		bashToolPatterns,
 		zeroAccessPaths: loaded.zeroAccessPaths || [],
@@ -104,17 +105,18 @@ function parseRulesFile(rulesPath: string): Rules {
 	};
 }
 
-function loadRules(): { rules: Rules; source: string } {
+function loadRules(): { rules: Rules; source: string; warning?: string } {
 	const project = join(process.cwd(), ".pi", "damage-control-rules.yaml");
 	const harness = join(harnessRoot(), "damage-control-rules.yaml");
 	if (existsSync(project)) {
 		try {
 			return { source: "project", rules: parseRulesFile(project) };
 		} catch (err) {
-			console.error(
-				"pi-life: invalid project damage-control-rules.yaml; using harness defaults:",
-				err instanceof Error ? err.message : String(err),
-			);
+			const warning =
+				"invalid project damage-control-rules.yaml; using harness defaults: " +
+				(err instanceof Error ? err.message : String(err));
+			console.error("pi-life:", warning);
+			return { source: "harness", rules: parseRulesFile(harness), warning };
 		}
 	}
 	return { source: "harness", rules: parseRulesFile(harness) };
@@ -133,7 +135,10 @@ export default function (pi: ExtensionAPI) {
 				rules.zeroAccessPaths.length +
 				rules.readOnlyPaths.length +
 				rules.noDeletePaths.length;
-			if (ctx.hasUI) ctx.ui.notify(`Damage-Control (continue): ${total} rules (${loaded.source})`);
+			if (ctx.hasUI) {
+				if (loaded.warning) ctx.ui.notify(`Damage-Control: ${loaded.warning}`, "warning");
+				ctx.ui.notify(`Damage-Control (continue): ${total} rules (${loaded.source})`);
+			}
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			console.error("pi-life: damage-control rules failed to load:", msg);
@@ -187,18 +192,23 @@ export default function (pi: ExtensionAPI) {
 		if (!violationReason && isToolCallEventType("bash", event)) {
 			const command = event.input.command;
 			for (const rule of rules.bashToolPatterns) {
-				if (new RegExp(rule.pattern).test(command)) {
+				if (rule.re.test(command)) {
 					violationReason = rule.reason;
 					shouldAsk = !!rule.ask;
 					break;
 				}
 			}
 			if (!violationReason) {
-				for (const zap of rules.zeroAccessPaths) {
-					if (command.includes(zap) || commandReferencesPath(command, expandTilde(zap))) {
-						violationReason = `Bash command references zero-access path: ${zap}`;
-						break;
+				const tokens = command.split(/\s+/).map((t) => t.replace(/^['"]|['"]$/g, "")).filter(Boolean);
+				for (const tok of tokens) {
+					const resolved = resolvePath(tok, ctx.cwd);
+					for (const zap of rules.zeroAccessPaths) {
+						if (isPathMatch(resolved, zap, ctx.cwd) || isPathMatch(tok, zap, ctx.cwd)) {
+							violationReason = `Bash command references zero-access path: ${zap}`;
+							break;
+						}
 					}
+					if (violationReason) break;
 				}
 			}
 			if (!violationReason) {

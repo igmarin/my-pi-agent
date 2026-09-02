@@ -135,6 +135,7 @@ smoke:
         if (!hit(cmd)) { console.error("expected block:", cmd); process.exit(1); }
       }
       if (hit("git status")) { console.error("false positive: git status"); process.exit(1); }
+      if (!r.noDeletePaths?.includes(".git")) { console.error("expected noDeletePaths .git"); process.exit(1); }
     '
 
 # Harness-dev: damage-control-continue (does not launch via pi-life)

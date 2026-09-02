@@ -22,4 +22,7 @@ zeroAccessPaths:
 
 readOnlyPaths: []
 
-noDeletePaths: []
+noDeletePaths:
+  - ".git"
+
+# `ask: true` only prompts in a TUI. Headless/print/JSON denies.
