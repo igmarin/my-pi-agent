@@ -13,6 +13,7 @@ import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		applyExtensionDefaults(import.meta.url, ctx);
+		if (!ctx.hasUI) return;
 		ctx.ui.setFooter((_tui, theme, _footerData) => ({
 			dispose: () => {},
 			invalidate() {},

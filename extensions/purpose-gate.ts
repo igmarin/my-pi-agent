@@ -9,14 +9,15 @@
  * Usage: pi -e extensions/purpose-gate.ts
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { truncateToWidth } from "@mariozechner/pi-tui";
 import { applyExtensionDefaults } from "./themeMap.ts";
 
 export default function (pi: ExtensionAPI) {
 	let purpose: string | undefined;
 
-	async function askForPurpose(ctx: any) {
+	async function askForPurpose(ctx: ExtensionContext) {
+		if (!ctx.hasUI) return;
 		while (!purpose) {
 			const answer = await ctx.ui.input(
 				"What is the purpose of this agent?",
@@ -46,6 +47,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", async (_event, ctx) => {
 		applyExtensionDefaults(import.meta.url, ctx);
+		if (!ctx.hasUI) return;
 		void askForPurpose(ctx);
 	});
 
@@ -57,6 +59,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("input", async (_event, ctx) => {
+		if (!ctx.hasUI) return { action: "continue" as const };
 		if (!purpose) {
 			ctx.ui.notify("Set a purpose first.", "warning");
 			return { action: "handled" as const };
