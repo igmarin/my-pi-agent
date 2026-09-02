@@ -32,6 +32,8 @@ bun install
 just smoke
 just ext-purpose-gate   # purpose widget + context meter
 just ext-minimal        # model + 10-block context meter
+just ext-cross-agent    # .claude/.gemini/.codex commands
+just ext-system-select  # /system persona from profiles/agents YAML
 ```
 
 ## AI code review

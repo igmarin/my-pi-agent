@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 const THEME_MAP: Record<string, string> = {
 	minimal: "synthwave",
 	"purpose-gate": "tokyo-night",
+	"cross-agent": "ocean-breeze",
+	"system-select": "catppuccin-mocha",
 };
 
 function extensionName(fileUrl: string): string {
