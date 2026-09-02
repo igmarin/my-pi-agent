@@ -19,7 +19,7 @@ pi-life doctor             # stub until #13
 
 Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` are not lives.
 
-`pi-life` reads `profiles/<life>.yaml` and execs `pi --no-skills` plus `--skill` for each allowlisted mantra/pack path under `~/.agents/skills`. Missing packs warn and still launch. Invalid YAML exits 2. A missing mantra path, or a missing path for a configured tracker, exits 2. Omitting tracker or `tracker: none` loads no tracker skill. `chain`/`team` currently use the same skill allowlist as `solo` until #6/#8.
+`pi-life` loads `profiles/<life>.yaml` (`--no-skills` then allowlisted `--skill`). Invalid YAML, a missing mantra path, or a missing configured tracker path exits 2. Omit tracker = no tracker. Missing packs warn. `chain`/`team` use the solo allowlist until #6/#8.
 
 ```text
 just install

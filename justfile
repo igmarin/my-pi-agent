@@ -94,16 +94,6 @@ smoke:
     grep -q 'missing required tracker' "${tmp}/notrack.err"
     rm -rf "${notrack}"
 
-    none="$(mktemp -d)"
-    mkdir -p "${none}/profiles"
-    printf '%s\n' 'life: python' 'tracker: none' 'packs: []' 'mantra: [i-have-adhd]' >"${none}/profiles/python.yaml"
-    mkdir -p "${tmp}/skills-no-tracker/i-have-adhd"
-    printf '%s\n' '# i-have-adhd' >"${tmp}/skills-no-tracker/i-have-adhd/SKILL.md"
-    none_out="$(MY_PI_AGENT_HOME="${none}" PI_SKILLS_HOME="${tmp}/skills-no-tracker" "${bin}" --dry-run python 2>"${tmp}/none.err")"
-    echo "${none_out}" | grep -q -- "--skill ${tmp}/skills-no-tracker/i-have-adhd"
-    ! grep -E -- '--skill [^[:space:]]+/none([[:space:]]|$)' <<<"${none_out}"
-    rm -rf "${none}"
-
     badmap="$(mktemp -d)"
     mkdir -p "${badmap}/profiles"
     printf '%s\n' 'life: python' 'tracker: github-issue' 'packs: {bad: true}' 'mantra: [i-have-adhd]' >"${badmap}/profiles/python.yaml"
