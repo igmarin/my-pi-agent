@@ -37,6 +37,7 @@ The workflow `.github/workflows/rs-guard-review.yml` runs on every non-draft pul
 
 ## Configuration
 
+- `AGENTS.md` — project rules and domain glossary; auto-loaded by rs-guard as supplemental context.
 - `.github/review-prompt.md` — the review prompt used by both local and CI runs.
 - `.reviewer.toml` — rs-guard configuration (provider, model, timeout).
 - `.rs-guardignore` — paths excluded from review diffs.

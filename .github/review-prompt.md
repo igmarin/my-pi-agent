@@ -83,13 +83,20 @@ Always include at least one specific positive observation. Specific praise motiv
 
 ## Project-Specific Focus
 
-This repository contains personal AI agent configuration and project rules. Review changes with these conventions in mind:
+This repository is the **pi-life** TypeScript/Bun harness for the Pi agent. Review every diff against the 0.1.0 roadmap and the conventions in `AGENTS.md`:
 
-- No API keys, tokens, passwords, or personal identifiers may be committed to version control.
-- Agent instructions, rules, and prompts must be clear, consistent, and free of contradictions.
-- New or changed configuration must include or update README / AGENTS.md documentation.
-- Generated or vendor content (`.codegraph/`, `.serena/`, `graphify-out/`, etc.) should not be manually edited without updating the source or documenting why.
-- Prefer explicit, version-controlled configuration over hidden runtime assumptions.
+- Extensions must keep the Pi ExtensionAPI contract: `export default function (pi)`. Do not break `setActiveTools` / `appendEntry` / `before_agent_start` usage.
+- Path resolution is **harness first, project override**: `profiles/<life>/` and `profiles/<life>/agents/` win over target repo `.pi/` and `.claude/...`. Do not pollute target repos with harness files.
+- Fail closed: `rs-guard` exit 2, invalid YAML, and missing required binaries (`pi`, `bun`) must error or block. Warnings are only for optional packs/binaries.
+- No secrets (API keys, tokens, `auth.json`, `.env`) in committed code, and never read target-repo secret files.
+- `damage-control-continue` blocks destructive git operations (`push`, `reset --hard`, `git clean -fd`), writes outside `cwd`, and reads of `**/.env` / `~/.pi/agent/auth.json`. Child agents always inherit it.
+- `clarify` / `requirements-clarifier` is a hard gate: write/edit tools are blocked until the task is accepted; read-only research is allowed before acceptance.
+- `chain`, `team`, and `tilldone` are mutually exclusive; do not mix them in one launch.
+- Overlays in `.pi/capabilities.yaml` gate tools/prompts. Missing overlay ≡ all capabilities off. No invented lives or capabilities.
+- Researcher uses fetch/search/cite first; browser tools (`obscura`, `playwright`) only when the corresponding capability is on.
+- Profiles define pack allowlists; do not flatten or mix language-specific packs. Missing pack is a warning, not a crash.
+- `README`, `CONTEXT.md`, and smoke tests/recipes must be updated for new concepts or features.
+- Herdr is a host, not a feature: `pi-life` is launched with `herdr agent start <name> --kind pi -- pi-life <life>`. Do not build a Pi extension that wraps Herdr in 0.1.0.
 
 At the end of your response, include exactly this metadata block (do not modify the format):
 
