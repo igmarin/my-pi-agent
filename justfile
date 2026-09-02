@@ -48,3 +48,13 @@ smoke:
     status=0
     "$bin" doctor extra >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
+    bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
+      --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
+
+# Harness-dev: model name + 10-block context meter
+ext-minimal:
+    cd "{{root}}" && pi -e extensions/minimal.ts
+
+# Harness-dev: purpose-gate then minimal footer (does not launch via pi-life)
+ext-purpose-gate:
+    cd "{{root}}" && pi -e extensions/purpose-gate.ts -e extensions/minimal.ts

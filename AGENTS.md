@@ -19,6 +19,7 @@ This repository is the **pi-life** harness: a TypeScript/Bun launcher for the Pi
 ## Conventions
 
 - TypeScript ESM. `package.json` has `"type": "module"`.
+- Ponytail: shortest working code. `ponytail-review` the staged diff before every push; cut findings first.
 - Use `bun` for runtime and `just` for harness tasks only. Never add a `justfile` to a target repo.
 - Pi extensions export `export default function (pi) { ... }` and use the Pi ExtensionAPI contract.
 - Path resolution is **harness first, project override**: `profiles/<life>/...` then target repo `.pi/...` then `.claude/...`/`.gemini/...`/`.codex/...`.
