@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Launch a Pi harness life from the target repo (cwd). Does not launch Pi yet (#1: help only).
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: pi-life <life> [solo|chain|team]
+       pi-life doctor
+       pi-life --help
+
+Lives: rust | elixir | rails | rails-python
+
+  solo   daily stack (default)
+  chain  plan-build-review
+  team   dispatcher
+  doctor this machine + cwd overlay
+
+Harness root: MY_PI_AGENT_HOME or the directory that contains this script.
+Run from the target repo. Does not require a justfile there.
+EOF
+}
+
+resolve_root() {
+  if [[ -n "${MY_PI_AGENT_HOME:-}" ]]; then
+    printf '%s\n' "${MY_PI_AGENT_HOME}"
+    return
+  fi
+  local src="${BASH_SOURCE[0]}"
+  while [[ -L "${src}" ]]; do
+    local dir
+    dir="$(cd "$(dirname "${src}")" && pwd)"
+    src="$(readlink "${src}")"
+    [[ "${src}" != /* ]] && src="${dir}/${src}"
+  done
+  cd "$(dirname "${src}")/.." && pwd
+}
+
+main() {
+  if [[ $# -eq 0 || "${1:-}" == "-h" || "${1:-}" == "--help" || "${1:-}" == "help" ]]; then
+    usage
+    exit 0
+  fi
+
+  local root
+  root="$(resolve_root)"
+
+  case "${1}" in
+    doctor)
+      printf 'harness: %s\n' "${root}"
+      printf 'cwd: %s\n' "${PWD}"
+      printf 'doctor: not implemented yet (issue #13)\n'
+      exit 0
+      ;;
+    rust|elixir|rails|rails-python)
+      local life="${1}"
+      local mode="${2:-solo}"
+      case "${mode}" in
+        solo|chain|team) ;;
+        *)
+          printf 'pi-life: unknown mode %s\n' "${mode}" >&2
+          usage >&2
+          exit 2
+          ;;
+      esac
+      printf 'pi-life: launch not implemented yet (life=%s mode=%s root=%s cwd=%s)\n' \
+        "${life}" "${mode}" "${root}" "${PWD}"
+      printf 'pi-life: issue #1 is help-only; launching lands with profiles (#10)\n'
+      exit 0
+      ;;
+    *)
+      printf 'pi-life: unknown life %s\n' "${1}" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"

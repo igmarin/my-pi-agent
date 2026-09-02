@@ -1,0 +1,9 @@
+{
+  "name": "my-pi-agent",
+  "private": true,
+  "type": "module",
+  "description": "Personal Pi Coding Agent harness. yaml is for damage-control rules (#3).",
+  "dependencies": {
+    "yaml": "^2.8.0"
+  }
+}
