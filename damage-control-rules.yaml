@@ -1,0 +1,25 @@
+# Default damage-control rules. Project `.pi/damage-control-rules.yaml` is a
+# full replace (not a merge). Pattern is a JS RegExp against the bash command.
+
+bashToolPatterns:
+  - pattern: '\bgit\s+push\b'
+    reason: git push (agents must not push)
+  - pattern: '\bgit\s+reset\s+--hard\b'
+    reason: git reset --hard
+  - pattern: '\bgit\s+clean\b'
+    reason: git clean (force/directory/ignored)
+
+zeroAccessPaths:
+  - ".env"
+  - ".env.local"
+  - ".env.development"
+  - ".env.production"
+  - ".env.staging"
+  - ".env.test"
+  - ".env.*.local"
+  - "*.env"
+  - "~/.pi/agent/auth.json"
+
+readOnlyPaths: []
+
+noDeletePaths: []

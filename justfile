@@ -38,9 +38,10 @@ smoke:
     python_out="$("${bin}" --dry-run python 2>"${tmp}/python.err")"
 
     case "${rust_out}" in
-      pi\ --no-skills\ *) ;;
-      *) echo "INV-skills: rust argv must start with --no-skills: ${rust_out}" >&2; exit 1 ;;
+      pi\ -e\ *damage-control-continue.ts\ --no-skills\ *) ;;
+      *) echo "INV-skills: rust argv must start with -e damage-control-continue --no-skills: ${rust_out}" >&2; exit 1 ;;
     esac
+    echo "${rust_out}" | grep -q -- "-e ${root}/extensions/damage-control-continue.ts"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/ponytail"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/github-issue"
     ! grep -q -- "elixir-phoenix-skills" <<<"${rust_out}"
@@ -123,7 +124,22 @@ smoke:
     test "${status}" -eq 2
     echo "smoke ok"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
+      "{{root}}/extensions/damage-control-continue.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
+    bun -e '
+      import { parse } from "yaml";
+      import { readFileSync } from "node:fs";
+      const r = parse(readFileSync("damage-control-rules.yaml", "utf8"));
+      const hit = (cmd) => r.bashToolPatterns.some((p) => new RegExp(p.pattern).test(cmd));
+      for (const cmd of ["git push origin main", "git reset --hard", "git clean -fd", "git clean -fdx"]) {
+        if (!hit(cmd)) { console.error("expected block:", cmd); process.exit(1); }
+      }
+      if (hit("git status")) { console.error("false positive: git status"); process.exit(1); }
+    '
+
+# Harness-dev: damage-control-continue (does not launch via pi-life)
+ext-damage-control:
+    cd "{{root}}" && pi -e extensions/damage-control-continue.ts
 
 # Harness-dev: model name + 10-block context meter
 ext-minimal:

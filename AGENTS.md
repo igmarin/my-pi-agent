@@ -15,7 +15,7 @@ Pointers (load when the branch fires):
 - Fail closed (exit 2): invalid YAML; missing mantra path; missing path for a **configured** tracker. `tracker: none` or omitting tracker (elixir) loads no tracker skill. Missing packs warn and still launch.
 - `chain` / `team` print “not wired yet (#6/#8)” and use the solo allowlist. `doctor` is a stub (exit 2, #13).
 - `python` is pandas/FastAPI, not a Rails companion. GraphQL/REST are API packs, not lives.
-- Extensions: `export default function (pi)`. Skip `ctx.ui` when `!ctx.hasUI`. Stacked `-e`: first extension wins the theme.
+- Extensions: `export default function (pi)`. Skip `ctx.ui` when `!ctx.hasUI`. Stacked `-e`: first extension wins the theme. Solo launch always loads `damage-control-continue` (blocked tools return feedback; no `ctx.abort`).
 - Config for profiles/overlays/damage-control is YAML. Do not add TOML for those files. `yaml` npm is the parser.
 - Skills live under `PI_SKILLS_HOME` or `~/.agents/skills`. Do not vendor packs into this repo.
 - Harness tasks: `bun` + `just`. Never add a `justfile` to a target repo. Proof: `just smoke` (no tokengate, no mlx).
@@ -33,7 +33,7 @@ Provider: DeepSeek (`DEEPSEEK_API_KEY`). Prefer `deepseek-v4-flash` for local re
 
 ## Not shipped — do not implement or review as if present
 
-Overlay merge (#11), doctor (#13), damage-control-continue (#3), chain (#6), team (#8), boot TUI / model policy (#15). `provider_class` and `models` in profiles are placeholders until #15.
+Overlay merge (#11), doctor (#13), chain (#6), team (#8), boot TUI / model policy (#15). `provider_class` and `models` in profiles are placeholders until #15.
 
 ## Docs
 
