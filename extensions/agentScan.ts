@@ -40,19 +40,24 @@ function harnessRoot(extFileUrl: string): string {
 	return process.env.MY_PI_AGENT_HOME || join(dirname(fileURLToPath(extFileUrl)), "..");
 }
 
-function parseFrontmatter(raw: string): { fields: Record<string, string>; body: string } {
+function str(v: unknown): string {
+	return typeof v === "string" ? v : "";
+}
+
+function errText(e: unknown): string {
+	return e instanceof Error ? e.message : String(e);
+}
+
+function parseFrontmatter(raw: string): { fields: Record<string, unknown>; body: string } {
 	const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
 	if (!match) return { fields: {}, body: raw };
-	const fields: Record<string, string> = {};
-	for (const line of match[1].split("\n")) {
-		const idx = line.indexOf(":");
-		if (idx > 0) {
-			const val = line.slice(idx + 1).trim();
-			const quoted = val.length > 1 && ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")));
-			fields[line.slice(0, idx).trim()] = quoted ? val.slice(1, -1) : val;
+	try {
+		const doc = parse(match[1]);
+		if (doc && typeof doc === "object" && !Array.isArray(doc)) {
+			return { fields: doc as Record<string, unknown>, body: match[2] };
 		}
-	}
-	return { fields, body: match[2] };
+	} catch {}
+	return { fields: {}, body: match[2] };
 }
 
 function toolsOf(v: unknown): string[] {
@@ -75,11 +80,13 @@ function scanCommands(dir: string): Discovered[] {
 			const { fields, body } = parseFrontmatter(raw);
 			items.push({
 				name: basename(file, ".md"),
-				description: fields.description || firstLine(body),
+				description: str(fields.description) || firstLine(body),
 				content: body,
 			});
 		}
-	} catch {}
+	} catch (e) {
+		console.warn("agentScan: commands skipped in", dir + ":", errText(e));
+	}
 	return items;
 }
 
@@ -95,20 +102,22 @@ function scanSkills(dir: string): Discovered[] {
 				const { fields, body } = parseFrontmatter(raw);
 				items.push({
 					name: entry,
-					description: fields.description || firstLine(body),
-					content: raw,
+					description: str(fields.description) || firstLine(body),
+					content: body, // frontmatter never reaches the model session
 				});
 			} else if (entry.endsWith(".md") && statSync(flatFile).isFile()) {
 				const raw = readFileSync(flatFile, "utf-8");
 				const { fields, body } = parseFrontmatter(raw);
 				items.push({
 					name: basename(entry, ".md"),
-					description: fields.description || firstLine(body),
-					content: raw,
+					description: str(fields.description) || firstLine(body),
+					content: body,
 				});
 			}
 		}
-	} catch {}
+	} catch (e) {
+		console.warn("agentScan: skills skipped in", dir + ":", errText(e));
+	}
 	return items;
 }
 
@@ -117,13 +126,14 @@ function agentFromMd(path: string, source: string): AgentDef | null {
 		const raw = readFileSync(path, "utf-8");
 		const { fields, body } = parseFrontmatter(raw);
 		return {
-			name: fields.name || basename(path, ".md"),
-			description: fields.description || "",
+			name: str(fields.name) || basename(path, ".md"),
+			description: str(fields.description),
 			tools: toolsOf(fields.tools),
 			body: body.trim(),
 			source,
 		};
-	} catch {
+	} catch (e) {
+		console.warn("agentScan: agent md skipped:", path, errText(e));
 		return null;
 	}
 }
@@ -140,7 +150,8 @@ function agentFromYaml(path: string, source: string): AgentDef | null {
 		const hasContent = [rec.name, rec.description, rec.body, rec.prompt].some((v) => typeof v === "string" && v.trim());
 		if (!hasContent) return null;
 		return { name, description, tools: toolsOf(rec.tools), body: body.trim(), source };
-	} catch {
+	} catch (e) {
+		console.warn("agentScan: agent yaml skipped:", path, errText(e));
 		return null;
 	}
 }
@@ -159,7 +170,9 @@ function scanAgents(dir: string, source: string): AgentDef[] {
 					: null;
 			if (agent) items.push(agent);
 		}
-	} catch {}
+	} catch (e) {
+		console.warn("agentScan: agents skipped in", dir + ":", errText(e));
+	}
 	return items;
 }
 

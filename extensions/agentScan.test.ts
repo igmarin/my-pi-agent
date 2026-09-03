@@ -108,3 +108,21 @@ test("frontmatter quotes are stripped from descriptions", () => {
 	const q = collectAgents(cwd, import.meta.url, home).find((a) => a.name === "quoted");
 	expect(q?.description).toBe("Runs builds");
 });
+
+test("agent md tools accept yaml list forms", () => {
+	seed();
+	writeFileSync(join(cwd, ".pi/agents/seq.md"), "---\nname: seq\ntools:\n  - bash\n  - read\n---\nSEQ\n");
+	writeFileSync(join(cwd, ".pi/agents/inline.md"), "---\nname: inline\ntools: [bash, read]\n---\nINL\n");
+	const agents = collectAgents(cwd, import.meta.url, home);
+	expect(agents.find((a) => a.name === "seq")?.tools).toEqual(["bash", "read"]);
+	expect(agents.find((a) => a.name === "inline")?.tools).toEqual(["bash", "read"]);
+});
+
+test("skill content excludes frontmatter", () => {
+	seed();
+	mkdirSync(join(cwd, ".pi/skills/demo"), { recursive: true });
+	writeFileSync(join(cwd, ".pi/skills/demo/SKILL.md"), "---\nname: demo\ndescription: d\n---\nBODYTEXT\n");
+	const demo = discover(cwd, import.meta.url, home).flatMap((g) => g.skills).find((s) => s.name === "demo");
+	expect(demo?.content).not.toContain("description:");
+	expect(demo?.content).toContain("BODYTEXT");
+});

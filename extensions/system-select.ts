@@ -82,7 +82,9 @@ export default function (pi: ExtensionAPI) {
 				applyAgent(null, ctx);
 				return;
 			}
-			applyAgent(allAgents[options.indexOf(choice) - 1], ctx);
+			const idx = options.indexOf(choice) - 1;
+			if (idx < 0 || idx >= allAgents.length) return;
+			applyAgent(allAgents[idx], ctx);
 		},
 	});
 
