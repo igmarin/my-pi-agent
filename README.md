@@ -19,7 +19,7 @@ pi-life doctor             # stub until #13
 
 Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` are not lives.
 
-`pi-life` loads `profiles/<life>.yaml` (`--no-skills` then allowlisted `--skill`). Invalid YAML, a missing mantra path, or a missing configured tracker path exits 2. Omit tracker = no tracker. Missing packs warn. `chain`/`team` use the solo allowlist until #6/#8.
+`pi-life` loads `profiles/<life>.yaml`, then execs `pi -e extensions/damage-control-continue.ts --no-skills` plus allowlisted `--skill`. Invalid YAML, a missing mantra path, or a missing configured tracker path exits 2. Omit tracker = no tracker. Missing packs warn. `chain`/`team` use the solo allowlist until #6/#8. Blocked `git push` / `reset --hard` / `clean -fd` / `.env` / `auth.json` / writes outside cwd return feedback; the turn continues.
 
 ```text
 just install
@@ -32,6 +32,7 @@ bun install
 just smoke
 just ext-purpose-gate   # purpose widget + context meter
 just ext-minimal        # model + 10-block context meter
+just ext-damage-control # continue-variant safety rules
 ```
 
 ## AI code review
