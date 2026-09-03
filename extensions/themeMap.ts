@@ -11,6 +11,7 @@ const THEME_MAP: Record<string, string> = {
 	"purpose-gate": "tokyo-night",
 	"cross-agent": "ocean-breeze",
 	"system-select": "catppuccin-mocha",
+	"damage-control-continue": "gruvbox",
 };
 
 function extensionName(fileUrl: string): string {

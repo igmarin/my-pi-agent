@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Launch a Pi harness life from the target repo (cwd).
-# INV-skills: always --no-skills, then --skill for allowlisted paths only.
+# INV-skills: -e damage-control-continue, always --no-skills, then --skill for allowlisted paths only.
 set -euo pipefail
 
 usage() {
@@ -134,7 +134,7 @@ launch_life() {
 
   local skills_home="${PI_SKILLS_HOME:-${HOME}/.agents/skills}"
   skill_names=""
-  pi_args=(--no-skills)
+  pi_args=(-e "${root}/extensions/damage-control-continue.ts" --no-skills)
 
   local rows
   rows="$(read_profile "${profile}" "${root}")" || exit 2

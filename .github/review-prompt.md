@@ -88,7 +88,7 @@ This is a TypeScript/Bun + bash harness (`pi-life`), not a Rails app. Proof is `
 
 **Must hold (shipped):**
 
-- INV-skills: argv starts with `--no-skills`; only allowlisted `--skill` paths.
+- INV-skills: argv includes `-e extensions/damage-control-continue.ts` then `--no-skills`; only allowlisted `--skill` paths.
 - Fail closed: invalid profile YAML and missing mantra/configured-tracker **paths** exit 2. Parser failures must propagate (no process-sub / `|| true` swallow). `tracker: none` and omitting tracker are not missing-path failures.
 - Missing optional packs warn; do not raise them to Critical.
 - Lives are `rust|elixir|ruby|python` only. `rails-python` is not a life.

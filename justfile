@@ -38,9 +38,10 @@ smoke:
     python_out="$("${bin}" --dry-run python 2>"${tmp}/python.err")"
 
     case "${rust_out}" in
-      pi\ --no-skills\ *) ;;
-      *) echo "INV-skills: rust argv must start with --no-skills: ${rust_out}" >&2; exit 1 ;;
+      pi\ -e\ *damage-control-continue.ts\ --no-skills\ *) ;;
+      *) echo "INV-skills: rust argv must start with -e damage-control-continue --no-skills: ${rust_out}" >&2; exit 1 ;;
     esac
+    echo "${rust_out}" | grep -q -- "-e ${root}/extensions/damage-control-continue.ts"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/ponytail"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/github-issue"
     ! grep -q -- "elixir-phoenix-skills" <<<"${rust_out}"
@@ -125,7 +126,41 @@ smoke:
     bun test "{{root}}/extensions/agentScan.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
+      "{{root}}/extensions/damage-control-continue.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
+    bun -e '
+      import { parse } from "yaml";
+      import { readFileSync } from "node:fs";
+      const r = parse(readFileSync("damage-control-rules.yaml", "utf8"));
+      const hit = (cmd) => r.bashToolPatterns.some((p) => new RegExp(p.pattern).test(cmd));
+      for (const cmd of ["git push origin main", "git reset --hard", "git clean -fd", "git clean -fdx"]) {
+        if (!hit(cmd)) { console.error("expected block:", cmd); process.exit(1); }
+      }
+      if (hit("git status")) { console.error("false positive: git status"); process.exit(1); }
+      if (!r.noDeletePaths?.includes(".git")) { console.error("expected noDeletePaths .git"); process.exit(1); }
+    '
+    bun -e '
+      import { isPathMatch, bashWriteTargets, expansionOperandRisk } from "./extensions/damage-control-continue.ts";
+      import { resolve } from "node:path";
+      const cwd = process.cwd();
+      const m = (p, pat) => isPathMatch(resolve(cwd, p), pat, cwd);
+      if (m("/work/docs-archive/file", "docs")) { console.error("docs matched docs-archive"); process.exit(1); }
+      if (!m(cwd + "/docs/file", "docs/")) { console.error("dir pattern failed"); process.exit(1); }
+      if (!m(cwd + "/.env", ".env")) { console.error(".env not matched"); process.exit(1); }
+      if (!bashWriteTargets("echo data > /tmp/damage-control-test").targets.includes("/tmp/damage-control-test")) { console.error("redir target missed"); process.exit(1); }
+      if (bashWriteTargets("echo hi > ./ok.txt").targets.length !== 1) { console.error("cwd target missed"); process.exit(1); }
+      if (!bashWriteTargets("gzip -c .env | tee /tmp/out").targets.includes("/tmp/out")) { console.error("tee target missed"); process.exit(1); }
+      if (!bashWriteTargets("dd if=a of=$UNSET").unresolvable) { console.error("unresolvable not flagged"); process.exit(1); }
+      if (!expansionOperandRisk("rm -rf .g[it]")) { console.error("bracket rm not flagged"); process.exit(1); }
+      if (!expansionOperandRisk("rm -rf \"$DIR\"")) { console.error("var rm not flagged"); process.exit(1); }
+      if (expansionOperandRisk("rm -rf build/cache")) { console.error("plain rm flagged"); process.exit(1); }
+      if (expansionOperandRisk("git mv a b")) { console.error("git mv flagged"); process.exit(1); }
+      console.log("damage-control unit checks ok");
+    '
+
+# Harness-dev: damage-control-continue (does not launch via pi-life)
+ext-damage-control:
+    cd "{{root}}" && pi -e extensions/damage-control-continue.ts
 
 # Harness-dev: model name + 10-block context meter
 ext-minimal:
