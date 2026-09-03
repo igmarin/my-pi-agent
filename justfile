@@ -123,7 +123,9 @@ smoke:
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
     echo "smoke ok"
+    bun test "{{root}}/extensions/agentScan.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
+      "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
     bun -e '
@@ -167,3 +169,11 @@ ext-minimal:
 # Harness-dev: purpose-gate then minimal footer (does not launch via pi-life)
 ext-purpose-gate:
     cd "{{root}}" && pi -e extensions/purpose-gate.ts -e extensions/minimal.ts
+
+# Harness-dev: register .claude/.gemini/.codex commands (does not launch via pi-life)
+ext-cross-agent:
+    cd "{{root}}" && pi -e extensions/cross-agent.ts -e extensions/minimal.ts
+
+# Harness-dev: /system persona picker (does not launch via pi-life)
+ext-system-select:
+    cd "{{root}}" && pi -e extensions/system-select.ts -e extensions/minimal.ts

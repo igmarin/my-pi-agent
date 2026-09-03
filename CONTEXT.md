@@ -18,6 +18,10 @@ _Avoid_: calling GraphQL/REST a life
 Named launch config for a life: extensions, skill allowlist, tracker, provider class, model policy. Stored as YAML under `profiles/<life>.yaml`. Launch is `-e damage-control-continue` then `--no-skills` then allowlisted `--skill`. Invalid YAML, a missing mantra path, or a missing configured tracker path fails closed (exit 2). Omit tracker (elixir) or `tracker: none` = no tracker skill. Missing packs warn.
 _Avoid_: theme, preset; TOML for harness config
 
+**Agent (persona)**:
+YAML under `profiles/<life>/agents/` or shared `profiles/agents/`, then cwd `.pi/agents/`, then `.claude/.gemini/.codex` (cwd then home). First name wins. `cross-agent` registers `/name` and `/skill:name`. `system-select` `/system` prepends the chosen body. Not passed by `pi-life` yet.
+_Avoid_: flattening pack playbooks into these files
+
 **Project overlay**:
 File in the target repo (`.pi/capabilities.yaml`) that turns capabilities on or off.
 _Avoid_: settings, config (too broad)
