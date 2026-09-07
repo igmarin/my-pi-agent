@@ -134,8 +134,16 @@ read_profile() {
 # (used in tests to point at a custom profiles/ dir) do not break the import.
 # The module specifier is passed via env var (OVERLAY_MODULE) so paths with
 # single quotes or other JS-significant characters are safe.
+# The cwd is resolved to an absolute path before the subshell cd's, so
+# `--dump-overlay .` (or any relative path) finds the caller's overlay,
+# not the harness's.
 read_overlay() {
-  local cwd="$1"
+  local cwd_raw="$1"
+  local cwd
+  cwd="$(cd "${cwd_raw}" 2>/dev/null && pwd)" || {
+    printf 'pi-life: --dump-overlay cwd does not exist: %s\n' "${cwd_raw}" >&2
+    return 2
+  }
   local script
   script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
   # Fast path: no overlay file = all off. Avoids the bun spawn on the common
@@ -150,11 +158,10 @@ read_overlay() {
     OVERLAY_MODULE="${script}" bun -e '
       import { parse } from "yaml";
       import { readFileSync } from "node:fs";
-      import { join } from "node:path";
       const mod = await import(process.env.OVERLAY_MODULE);
       const { serializeOverlayEnv, parseOverlayDoc, OverlayParseError } = mod;
       const cwd = process.argv[1];
-      const overlayPath = join(cwd, ".pi", "capabilities.yaml");
+      const overlayPath = `${cwd}/.pi/capabilities.yaml`;
       let doc;
       try {
         doc = parse(readFileSync(overlayPath, "utf8"));
@@ -199,6 +206,43 @@ add_named_skill() {
   printf 'pi-life: warning: missing %s %s (%s)\n' "${kind}" "${name}" "${path}" >&2
 }
 
+# Issue #11: add a skill path that came from the overlay (extra_skills or
+# tracker.skill). These are local paths, resolved relative to the target repo
+# cwd. They are always optional (warn, don't fail) because the overlay is
+# per-repo and may point to paths that haven't been created yet.
+add_overlay_skill() {
+  local kind="$1" path="$2"
+  [[ -z "${path}" ]] && return 0
+  if [[ -e "${path}" ]]; then
+    pi_args+=(--skill "${path}")
+    return 0
+  fi
+  printf 'pi-life: warning: missing overlay %s (%s)\n' "${kind}" "${path}" >&2
+}
+
+# Issue #11: list the overlay skill paths (extra_skills + tracker.skill) as
+# absolute paths, one per line on stdout. Empty output = no overlay skills.
+# Reads PI_OVERLAY from the environment (set by launch_life). Uses bun + the
+# capabilities module to deserialize; resolves relative paths against $1.
+overlay_skill_paths() {
+  local overlay_cwd="$1"
+  local script
+  script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
+  (
+    cd "$(dirname "${script}")/.."
+    OVERLAY_MODULE="${script}" OVERLAY_CWD="${overlay_cwd}" bun -e '
+      const { isAbsolute, join } = await import("node:path");
+      const mod = await import(process.env.OVERLAY_MODULE);
+      const { deserializeOverlayEnv } = mod;
+      const overlay = deserializeOverlayEnv(process.env.PI_OVERLAY || "");
+      const cwd = process.env.OVERLAY_CWD;
+      const resolve = (p) => isAbsolute(p) ? p : join(cwd, p);
+      for (const s of overlay.extraSkills) process.stdout.write(resolve(s) + "\n");
+      if (overlay.trackerSkill) process.stdout.write(resolve(overlay.trackerSkill) + "\n");
+    '
+  )
+}
+
 launch_life() {
   local root="$1" life="$2" mode="$3" dry_run="$4"
   local profile="${root}/profiles/${life}.yaml"
@@ -238,6 +282,15 @@ launch_life() {
   export PI_OVERLAY="${overlay}"
   export MY_PI_AGENT_HOME="${root}"
   export PI_LIFE="${life}"
+
+  # Issue #11: overlay-defined skills (extra_skills + tracker.skill) become
+  # --skill arguments so the model can actually use them, not just see them
+  # in the prompt. Paths are resolved relative to $PWD; missing paths warn
+  # (per-repo overlay is a per-project opt-in, not a fail-closed requirement).
+  while IFS= read -r skill_path; do
+    [[ -z "${skill_path}" ]] && continue
+    add_overlay_skill overlay "${skill_path}"
+  done < <(overlay_skill_paths "${PWD}")
 
   if [[ "${dry_run}" -eq 1 ]]; then
     printf 'pi'

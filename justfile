@@ -194,7 +194,47 @@ smoke:
     "${bin}" --dump-overlay "${nooverlay}" >/dev/null 2>"${tmp}/badtracker.err" || status=$?
     test "${status}" -eq 2
     grep -q 'tracker has unknown key.*retries' "${tmp}/badtracker.err"
-    rm -rf "${nooverlay}"
+    # (f) Overlay extra_skills and tracker.skill become --skill args.
+    # We need a valid profile + valid skills home for launch_life to run,
+    # so this is a separate test scaffold.
+    overlay_life="$(mktemp -d)"
+    overlay_profile="$(mktemp -d)"
+    overlay_skill1="${overlay_life}/.pi/local-skills/team-rule"
+    overlay_skill2="${overlay_life}/.pi/local-tracker/work"
+    mkdir -p "${overlay_skill1}" "${overlay_skill2}"
+    mkdir -p "${overlay_profile}/profiles"
+    printf '%s\n' 'life: python' 'tracker: github-issue' 'packs: []' 'mantra: [i-have-adhd]' >"${overlay_profile}/profiles/python.yaml"
+    mkdir -p "${tmp}/overlay-skills-home/i-have-adhd" "${tmp}/overlay-skills-home/github-issue"
+    printf '%s\n' '# i-have-adhd' '# github-issue' >"${tmp}/overlay-skills-home/i-have-adhd/SKILL.md" "${tmp}/overlay-skills-home/github-issue/SKILL.md"
+    printf '%s\n' >"${overlay_skill1}/SKILL.md"
+    printf '%s\n' >"${overlay_skill2}/SKILL.md"
+    printf '%s\n' 'graphify: true' 'extra_skills:' "  - ${overlay_skill1}" 'tracker:' "  skill: ${overlay_skill2}" >"${overlay_life}/.pi/capabilities.yaml"
+    overlay_out="$(cd "${overlay_life}" && MY_PI_AGENT_HOME="${overlay_profile}" PI_SKILLS_HOME="${tmp}/overlay-skills-home" "${bin}" --dry-run python 2>"${tmp}/overlay.err")"
+    case "${overlay_out}" in
+      *"--skill ${overlay_skill1}"*) ;;
+      *) echo "expected --skill ${overlay_skill1} in argv, got: ${overlay_out}" >&2; exit 1 ;;
+    esac
+    case "${overlay_out}" in
+      *"--skill ${overlay_skill2}"*) ;;
+      *) echo "expected --skill ${overlay_skill2} in argv, got: ${overlay_out}" >&2; exit 1 ;;
+    esac
+    # (g) --dump-overlay . from a relative path works (cwd is normalized).
+    dumprel="$(mktemp -d)"
+    mkdir -p "${dumprel}/.pi"
+    printf 'graphify: true\n' >"${dumprel}/.pi/capabilities.yaml"
+    dumprel_payload="$(cd "${dumprel}" && "${bin}" --dump-overlay .)"
+    case "${dumprel_payload}" in
+      *'"graphify":true'*) ;;
+      *) echo "expected graphify on for --dump-overlay ., got: ${dumprel_payload}" >&2; exit 1 ;;
+    esac
+    # (h) Missing overlay skill path produces a warning, not a fail.
+    printf '%s\n' 'graphify: true' 'extra_skills:' '  - /no/such/skill' >"${dumprel}/.pi/capabilities.yaml"
+    warn_out="$(cd "${dumprel}" && MY_PI_AGENT_HOME="${overlay_profile}" PI_SKILLS_HOME="${tmp}/overlay-skills-home" "${bin}" --dry-run python 2>&1)"
+    case "${warn_out}" in
+      *"missing overlay overlay (/no/such/skill)"*) ;;
+      *) echo "expected missing-overlay warning, got: ${warn_out}" >&2; exit 1 ;;
+    esac
+    rm -rf "${nooverlay}" "${overlay_life}" "${overlay_profile}" "${dumprel}"
     echo "smoke ok"
     bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/subagent.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
