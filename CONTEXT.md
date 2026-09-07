@@ -39,7 +39,7 @@ This repo: extensions, profiles, `pi-life`, doctor. Host is Pi.
 _Avoid_: runtime, orchestrator, framework
 
 **Mantra**:
-Always-on skill overlay for every life: `i-have-adhd`, `ponytail`, `deslop`, `clarify`, TDD gate, per-life constraint style.
+Always-on skill overlay for every life: `i-have-adhd`, `ponytail`, `deslop`, `clarify`, TDD gate, per-life constraint style. Backed by the clarify-gate extension, which blocks `write` and `edit` tool calls until the user runs `/clarify` to accept the prompt; read-only tools stay available. The gate is per-session: once opened, it stays open. Print/JSON mode skips the gate.
 _Avoid_: system prompt (the prompt is how mantra is injected)
 
 **Capability**:
