@@ -59,7 +59,7 @@ Dispatcher-only mode. Primary Pi has no codebase tools.
 _Avoid_: swarm, crew
 
 **Tracker**:
-Where tickets are created. `rust`, `ruby`, and `python` use `github-issue`. `elixir` (work) uses a machine-local overlay skill for the internal tool.
+Where tickets are created. `rust`, `ruby`, and `python` use `github-issue`. `elixir` (work) uses a machine-local overlay skill for the internal tool. The overlay's `tracker.skill` is loaded as a `--skill` arg in the argv, so the work-internal tool is available without committing its name to the public repo.
 _Avoid_: board, project (GitHub Project is a surface of the tracker)
 
 ## Config format
