@@ -7,6 +7,7 @@ usage() {
   cat <<'EOF'
 Usage: pi-life [--dry-run] <life> [solo|chain|team]
        pi-life doctor
+       pi-life doctor-probe
        pi-life --help
 
 Lives: rust | elixir | ruby | python
@@ -21,6 +22,33 @@ Harness root: MY_PI_AGENT_HOME or the directory that contains this script.
 Skills root: PI_SKILLS_HOME or ~/.agents/skills.
 Run from the target repo. Does not require a justfile there.
 EOF
+}
+
+# Issue #18: required core.excludesfile patterns
+REQUIRED_EXCLUDES=("node_modules" ".pi/agent-sessions/" ".env" "graphify-out/" ".codegraph/")
+
+# Probe git's core.excludesfile in the cwd.
+# Returns 0 if the file exists and contains every REQUIRED_EXCLUDES pattern.
+# Returns 1 if the file is missing or any required pattern is absent.
+# Read-only: never writes to disk or git config.
+check_excludesfile() {
+  local path
+  path="$(git config --get core.excludesfile 2>/dev/null || true)"
+  if [[ -z "${path}" || ! -f "${path}" ]]; then
+    printf 'excludesfile: %s missing patterns: %s\n' "${path:-<unset>}" "$(IFS=,; echo "${REQUIRED_EXCLUDES[*]}")"
+    return 1
+  fi
+  local missing=()
+  local pat
+  for pat in "${REQUIRED_EXCLUDES[@]}"; do
+    grep -Fxq -- "${pat}" "${path}" || missing+=("${pat}")
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    printf 'excludesfile: %s missing patterns: %s\n' "${path}" "$(IFS=,; echo "${missing[*]}")"
+    return 1
+  fi
+  printf 'excludesfile: %s ok\n' "${path}"
+  return 0
 }
 
 resolve_root() {
@@ -205,6 +233,15 @@ main() {
       printf 'cwd: %s\n' "${PWD}"
       printf 'doctor: not implemented yet (issue #13)\n' >&2
       exit 2
+      ;;
+    doctor-probe)
+      if [[ $# -ne 1 ]]; then
+        printf 'pi-life: unexpected argument: %s\n' "${2}" >&2
+        usage >&2
+        exit 2
+      fi
+      check_excludesfile
+      exit $?
       ;;
   esac
 

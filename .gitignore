@@ -1,13 +1,18 @@
 #Base Gitignore
 .DS_Store
 
-node_modules/
-.env
-.env.*
-!.env.example
+# Issue #18: harness-wide ignores (local-only, never track)
+node_modules
 .pi/agent-sessions/
+.env
 graphify-out/
 .codegraph/
+
+# Local secrets
+.env.*
+!.env.example
+
+# Harness / agent scratch
 .serena/
 review-result.txt
 rs-guard-metrics.json
