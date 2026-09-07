@@ -2,9 +2,11 @@
  * Tests for the agent-chain pure helpers.
  *
  * The YAML parse, precedence resolution, task-template rendering, and life
- * canonicalization are all pure and unit-tested here. Actual step execution
- * (spawning `pi`) is exercised by `just smoke`, not by bun test — mocking
- * spawn would test the mock, mirroring the subagent convention.
+ * canonicalization are all pure and unit-tested here. Chain step execution
+ * (spawning `pi`) is NOT covered here or by `just smoke` as of this change —
+ * it reuses subagentHelpers.runSingleAgent, whose spawn path is exercised by
+ * the subagent suite. Mocking spawn would test the mock, so step execution is
+ * left to manual/end-to-end runs until the harness wires mode `chain`.
  */
 
 import { afterEach, describe, expect, test } from "bun:test";

@@ -48,8 +48,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { parse as yamlParse } from "yaml";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { collectAgents, type AgentDef } from "./agentScan.ts";
 import {
