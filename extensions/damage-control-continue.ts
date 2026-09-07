@@ -8,8 +8,8 @@
  * Usage: pi -e extensions/damage-control-continue.ts
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { parse as yamlParse } from "yaml";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";

@@ -2,8 +2,10 @@
   "name": "my-pi-agent",
   "private": true,
   "type": "module",
-  "description": "Personal Pi Coding Agent harness. yaml is for damage-control rules (#3).",
+  "description": "Personal Pi Coding Agent harness. yaml is for damage-control rules (#3). @earendil-works/pi-coding-agent + @earendil-works/pi-tui are the host's extension types (extensions/*.ts import from them); previously imported as @mariozechner/* but that scope was retired.",
   "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.85.1",
+    "@earendil-works/pi-tui": "^0.85.1",
     "yaml": "^2.8.0"
   }
 }

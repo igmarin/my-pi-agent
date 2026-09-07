@@ -7,7 +7,7 @@
  *
  * Usage: pi -e extensions/cross-agent.ts
  */
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { applyExtensionDefaults } from "./themeMap.ts";
 import { discover } from "./agentScan.ts";
 
