@@ -41,10 +41,11 @@ smoke:
     python_out="$("${bin}" --dry-run python 2>"${tmp}/python.err")"
 
     case "${rust_out}" in
-      pi\ -e\ *damage-control-continue.ts\ --no-skills\ *) ;;
-      *) echo "INV-skills: rust argv must start with -e damage-control-continue --no-skills: ${rust_out}" >&2; exit 1 ;;
+      pi\ -e\ *damage-control-continue.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
+      *) echo "INV-skills: rust argv must include -e damage-control-continue -e clarify-gate.ts --no-skills: ${rust_out}" >&2; exit 1 ;;
     esac
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/damage-control-continue.ts"
+    echo "${rust_out}" | grep -q -- "-e ${root}/extensions/clarify-gate.ts"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/ponytail"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/github-issue"
     ! grep -q -- "elixir-phoenix-skills" <<<"${rust_out}"
@@ -158,10 +159,11 @@ smoke:
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
     echo "smoke ok"
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/subagent.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/subagent.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
+      "{{root}}/extensions/clarify-gate.ts" \
       "{{root}}/extensions/status-line.ts" \
       "{{root}}/extensions/subagent.ts" "{{root}}/extensions/subagentHelpers.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
