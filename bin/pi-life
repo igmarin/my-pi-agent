@@ -181,7 +181,6 @@ launch_life() {
 
   export MY_PI_AGENT_HOME="${root}"
   export PI_LIFE="${life}"
-  export PI_LIFE_MODE="${mode}"
 
   if [[ "${dry_run}" -eq 1 ]]; then
     printf 'pi'

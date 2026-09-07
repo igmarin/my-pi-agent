@@ -20,8 +20,6 @@ zeroAccessPaths:
   - "*.env"
   - "~/.pi/agent/auth.json"
 
-readOnlyPaths: []
-
 noDeletePaths:
   - ".git"
 
