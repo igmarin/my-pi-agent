@@ -162,7 +162,7 @@ launch_life() {
 
   local skills_home="${PI_SKILLS_HOME:-${HOME}/.agents/skills}"
   skill_names=""
-  pi_args=(-e "${root}/extensions/damage-control-continue.ts" --no-skills)
+  pi_args=(-e "${root}/extensions/damage-control-continue.ts" -e "${root}/extensions/clarify-gate.ts" --no-skills)
   if [[ "${mode}" == "solo" ]]; then
     pi_args+=(-e "${root}/extensions/status-line.ts")
   fi
