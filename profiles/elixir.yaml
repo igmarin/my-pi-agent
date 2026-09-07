@@ -1,6 +1,5 @@
 # elixir life. github-issue is omitted unless a project overlay enables it (#11 / #17).
 life: elixir
-provider_class: work
 packs:
   - agnostic-planning-skills
   - elixir-phoenix-skills
@@ -12,6 +11,3 @@ mantra:
   - clarify
   - requirements-clarifier
   - tdd
-models:
-  planner_thinking: xhigh
-  builder_thinking: low
