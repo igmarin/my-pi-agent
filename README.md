@@ -14,7 +14,8 @@ pi-life python             # mantra only (pandas / FastAPI)
 pi-life elixir             # Elixir/Phoenix (no github-issue)
 pi-life rust
 pi-life --dry-run ruby     # print pi argv
-pi-life doctor             # stub until #13
+pi-life doctor             # machine + cwd overlay health
+pi-life doctor ruby         # same, plus ruby pack checks
 ```
 
 Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` are not lives.

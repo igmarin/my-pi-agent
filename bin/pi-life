@@ -6,7 +6,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: pi-life [--dry-run] <life> [solo|chain|team]
-       pi-life doctor
+       pi-life doctor [life]
        pi-life doctor-probe
        pi-life --dump-overlay <cwd>
        pi-life --help
@@ -17,7 +17,7 @@ Aliases: phoenix → elixir, rails → ruby
   solo   daily stack (default)
   chain  plan-build-review
   team   dispatcher
-  doctor this machine + cwd overlay
+  doctor this machine + cwd overlay (optional life checks its packs)
 
 Harness root: MY_PI_AGENT_HOME or the directory that contains this script.
 Skills root: PI_SKILLS_HOME or ~/.agents/skills.
@@ -336,15 +336,91 @@ main() {
 
   case "${1}" in
     doctor)
-      if [[ $# -ne 1 ]]; then
-        printf 'pi-life: unexpected argument: %s\n' "${2}" >&2
+      # Issue #13: doctor checks the launcher + optional packs. Exit 2 if a
+      # required piece (pi, bun) is missing or the overlay fails to parse;
+      # optional gaps (packs, just, rs-guard, excludesfile) warn, exit 0.
+      if [[ $# -gt 2 ]]; then
+        printf 'pi-life: unexpected argument: %s\n' "${3}" >&2
         usage >&2
         exit 2
       fi
+      local doc_life="${2:-}"
+      if [[ -n "${doc_life}" ]]; then
+        local doc_status=0
+        doc_life="$(canonical_life "${doc_life}")" || doc_status=$?
+        if [[ "${doc_status}" -eq 2 ]]; then
+          exit 2
+        fi
+        if [[ "${doc_status}" -ne 0 ]]; then
+          printf 'pi-life: unknown life %s\n' "${doc_life}" >&2
+          usage >&2
+          exit 2
+        fi
+        printf 'life: %s\n' "${doc_life}"
+      fi
       printf 'harness: %s\n' "${root}"
       printf 'cwd: %s\n' "${PWD}"
-      printf 'doctor: not implemented yet (issue #13)\n' >&2
-      exit 2
+
+      local overlay
+      overlay="$(read_overlay "${PWD}")" || exit 2
+      printf 'overlay: %s\n' "${overlay}"
+
+      local missing=()
+      command -v pi >/dev/null 2>&1 || missing+=("pi")
+      command -v bun >/dev/null 2>&1 || missing+=("bun")
+      if [[ ${#missing[@]} -gt 0 ]]; then
+        printf 'required: FAIL missing: %s\n' "${missing[*]}"
+        exit 2
+      fi
+      printf 'required: ok\n'
+
+      local optional=0
+      local skills_home="${PI_SKILLS_HOME:-${HOME}/.agents/skills}"
+      if [[ -n "${doc_life}" ]]; then
+        local doc_profile="${root}/profiles/${doc_life}.yaml"
+        if [[ ! -f "${doc_profile}" ]]; then
+          printf 'pi-life: missing profile %s\n' "${doc_profile}" >&2
+          exit 2
+        fi
+        local kind name
+        while IFS=$'\t' read -r kind name; do
+          [[ "${kind}" == "pack" ]] || continue
+          if [[ ! -e "${skills_home}/${name}" ]]; then
+            printf 'warning: missing pack %s (%s)\n' "${name}" "${skills_home}/${name}"
+            optional=$((optional + 1))
+          fi
+        done < <(read_profile "${doc_profile}" "${root}")
+      fi
+
+      if ! command -v just >/dev/null 2>&1; then
+        printf 'warning: just not on PATH\n'
+        optional=$((optional + 1))
+      fi
+      if ! command -v rs-guard >/dev/null 2>&1; then
+        printf 'warning: rs-guard not on PATH\n'
+        optional=$((optional + 1))
+      fi
+      if ! command -v obscura >/dev/null 2>&1; then
+        printf 'warning: obscura not on PATH (browser capability)\n'
+        optional=$((optional + 1))
+      fi
+      if ! command -v playwright >/dev/null 2>&1; then
+        printf 'warning: playwright not on PATH (browser capability)\n'
+        optional=$((optional + 1))
+      fi
+      local ex_rc=0
+      local ex_out
+      ex_out="$(check_excludesfile 2>&1)" || ex_rc=$?
+      if [[ "${ex_rc}" -ne 0 ]]; then
+        printf 'warning: %s\n' "${ex_out}"
+        optional=$((optional + 1))
+      fi
+      if [[ "${optional}" -eq 0 ]]; then
+        printf 'optional: ok\n'
+      else
+        printf 'optional: %s warning(s)\n' "${optional}"
+      fi
+      exit 0
       ;;
     doctor-probe)
       if [[ $# -ne 1 ]]; then

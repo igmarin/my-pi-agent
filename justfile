@@ -126,9 +126,6 @@ smoke:
     status=0
     "${bin}" ecto >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
-    status=0
-    "${bin}" doctor >/dev/null 2>&1 || status=$?
-    test "${status}" -eq 2
     # Issue #18: doctor-probe exercises check_excludesfile in isolation.
     # Read-only: writes to a temp HOME/cwd, never touches the real ~/.gitignore_global.
     probe_home="$(mktemp -d)"
@@ -156,6 +153,32 @@ smoke:
     test "${status}" -eq 1
     [[ "${out}" == *"missing patterns:"* ]]
     rm -rf "${probe_home}" "${probe_cwd}"
+    # Issue #13: doctor. (i) all required present, exit 0 + structured report.
+    doc_cwd="$(mktemp -d)"
+    status=0
+    out="$(cd "${doc_cwd}" && PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
+    test "${status}" -eq 0
+    [[ "${out}" == *"harness: ${root}"* ]]
+    [[ "${out}" == *"cwd: ${doc_cwd}"* ]]
+    [[ "${out}" == *"overlay:"* ]]
+    [[ "${out}" == *"required: ok"* ]]
+    [[ "${out}" == *"optional:"* ]]
+    # (j) doctor <life> with a pack missing -> exit 0, warning named.
+    doc_life_cwd="$(mktemp -d)"
+    status=0
+    out="$(cd "${doc_life_cwd}" && PI_SKILLS_HOME="${tmp}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 0
+    [[ "${out}" == *"life: ruby"* ]]
+    [[ "${out}" == *"warning: missing pack ruby-core-skills"* ]]
+    # (k) doctor with overlay parse failure -> exit 2.
+    doc_bad="$(mktemp -d)"
+    mkdir -p "${doc_bad}/.pi"
+    printf ':\n  [\n' >"${doc_bad}/.pi/capabilities.yaml"
+    status=0
+    out="$(cd "${doc_bad}" && PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
+    test "${status}" -eq 2
+    [[ "${out}" == *"invalid overlay YAML"* ]]
+    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_bad}"
     status=0
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
