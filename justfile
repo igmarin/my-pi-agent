@@ -234,7 +234,45 @@ smoke:
       *"missing overlay overlay (/no/such/skill)"*) ;;
       *) echo "expected missing-overlay warning, got: ${warn_out}" >&2; exit 1 ;;
     esac
-    rm -rf "${nooverlay}" "${overlay_life}" "${overlay_profile}" "${dumprel}"
+    # (i) Issue #17: overlay tracker.skill works for a profile that omits
+    # tracker. The only way the tracker path appears in argv is from the
+    # overlay, proving the path is data-driven and local — never committed.
+    notrack_overlay_life="$(mktemp -d)"
+    notrack_overlay_profile="$(mktemp -d)"
+    notrack_tracker="${notrack_overlay_life}/.pi/local-tracker/work"
+    mkdir -p "${notrack_tracker}" "${notrack_overlay_profile}/profiles"
+    # Profile omits `tracker:` like profiles/elixir.yaml.
+    printf '%s\n' 'life: elixir' 'packs: []' 'mantra: [i-have-adhd]' >"${notrack_overlay_profile}/profiles/elixir.yaml"
+    mkdir -p "${tmp}/notrack-overlay-skills-home/i-have-adhd"
+    printf '%s\n' '# i-have-adhd' >"${tmp}/notrack-overlay-skills-home/i-have-adhd/SKILL.md"
+    printf '%s\n' >"${notrack_tracker}/SKILL.md"
+    printf '%s\n' 'tracker:' "  skill: ${notrack_tracker}" >"${notrack_overlay_life}/.pi/capabilities.yaml"
+    notrack_out="$(cd "${notrack_overlay_life}" && MY_PI_AGENT_HOME="${notrack_overlay_profile}" PI_SKILLS_HOME="${tmp}/notrack-overlay-skills-home" "${bin}" --dry-run elixir 2>"${tmp}/notrack.err")"
+    case "${notrack_out}" in
+      *"--skill ${notrack_tracker}"*) ;;
+      *) echo "expected overlay tracker.skill in argv, got: ${notrack_out}" >&2; exit 1 ;;
+    esac
+    # Profile did not require a tracker, so no "missing required tracker" error.
+    ! grep -q 'missing required tracker' "${tmp}/notrack.err"
+    # (j) Issue #17: no work-internal tracker name/URL/token in the public repo.
+    # The sentinel is a placeholder; if it ever matches a real identifier, the
+    # harness has leaked a private name. Excludes the justfile itself (which
+    # contains the literal pattern) and CONTEXT.md (the doc is allowed to
+    # describe the invariant). Includes everything else: code, profiles,
+    # scripts, extensions, configs, .github.
+    if grep -RIE 'worktracker|work-internal-tracker|http(s)?://[^[:space:]]*work[^[:space:]]*tracker' \
+        "${root}" \
+        --exclude-dir=.git \
+        --exclude-dir=node_modules \
+        --exclude=justfile \
+        --exclude=CONTEXT.md \
+        >"${tmp}/leakcheck.out" 2>/dev/null; then
+      echo "public-repo invariant: work-internal tracker identifier leaked:" >&2
+      cat "${tmp}/leakcheck.out" >&2
+      exit 1
+    fi
+    rm -rf "${nooverlay}" "${overlay_life}" "${overlay_profile}" "${dumprel}" \
+           "${notrack_overlay_life}" "${notrack_overlay_profile}"
     echo "smoke ok"
     bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/subagent.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
