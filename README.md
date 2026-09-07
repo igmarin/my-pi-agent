@@ -1,6 +1,6 @@
 # my-pi-agent
 
-Personal [Pi](https://github.com/mariozechner/pi-coding-agent) harness. Glossary: [CONTEXT.md](CONTEXT.md).
+Personal [Pi](https://github.com/earendil-works/pi) harness. Glossary: [CONTEXT.md](CONTEXT.md).
 
 ## Launch
 

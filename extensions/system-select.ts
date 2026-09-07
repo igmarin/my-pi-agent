@@ -7,7 +7,7 @@
  *
  * Usage: pi -e extensions/system-select.ts -e extensions/minimal.ts
  */
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { applyExtensionDefaults } from "./themeMap.ts";
 import { collectAgents, type AgentDef } from "./agentScan.ts";
 

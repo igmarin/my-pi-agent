@@ -2,7 +2,7 @@
  * Per-extension theme + terminal title. First -e wins when stacked.
  */
 
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
