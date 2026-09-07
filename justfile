@@ -41,10 +41,11 @@ smoke:
     python_out="$("${bin}" --dry-run python 2>"${tmp}/python.err")"
 
     case "${rust_out}" in
-      pi\ -e\ *damage-control-continue.ts\ --no-skills\ *) ;;
-      *) echo "INV-skills: rust argv must start with -e damage-control-continue --no-skills: ${rust_out}" >&2; exit 1 ;;
+      pi\ -e\ *damage-control-continue.ts\ *capabilities.ts\ --no-skills\ *) ;;
+      *) echo "INV-skills: rust argv must include -e damage-control-continue -e capabilities.ts --no-skills: ${rust_out}" >&2; exit 1 ;;
     esac
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/damage-control-continue.ts"
+    echo "${rust_out}" | grep -q -- "-e ${root}/extensions/capabilities.ts"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/ponytail"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/github-issue"
     ! grep -q -- "elixir-phoenix-skills" <<<"${rust_out}"
@@ -157,11 +158,70 @@ smoke:
     status=0
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
+    # Issue #11: capabilities overlay
+    # Probe the read_overlay path by sourcing the script and capturing the
+    # PI_OVERLAY it would export. launch_life only runs on the real path, so
+    # we wrap it: a tiny shim re-uses read_overlay from the harness.
+    overlay_probe() {
+      local probe_cwd="$1"
+      local script="${root}/extensions/capabilities.ts"
+      ( cd "${root}" && bun -e '
+        import { parse } from "yaml";
+        import { readFileSync, existsSync } from "node:fs";
+        import { join } from "node:path";
+        import { serializeOverlayEnv, parseOverlayDoc, OverlayParseError, EMPTY_OVERLAY } from "'"${script}"'";
+        const cwd = process.argv[1];
+        const overlayPath = join(cwd, ".pi", "capabilities.yaml");
+        if (!existsSync(overlayPath)) {
+          process.stdout.write(serializeOverlayEnv(EMPTY_OVERLAY) + "\n");
+          process.exit(0);
+        }
+        let doc;
+        try { doc = parse(readFileSync(overlayPath, "utf8")); }
+        catch (e) { console.error("pi-life: invalid overlay YAML: " + (e instanceof Error ? e.message : String(e))); process.exit(2); }
+        let overlay;
+        try { overlay = parseOverlayDoc(doc); }
+        catch (e) {
+          if (e instanceof OverlayParseError) { console.error("pi-life: " + e.message); process.exit(2); }
+          throw e;
+        }
+        process.stdout.write(serializeOverlayEnv(overlay) + "\n");
+      ' "${probe_cwd}" )
+    }
+    # (a) Missing overlay -> all-off payload.
+    nooverlay="$(mktemp -d)"
+    nooverlay_payload="$(overlay_probe "${nooverlay}")"
+    case "${nooverlay_payload}" in
+      *'"graphify":false'*'"codegraph":false'*'"serena":false'*'"rs-guard":false'*'"obscura":false'*'"playwright":false'*) ;;
+      *) echo "expected all-off overlay, got: ${nooverlay_payload}" >&2; exit 1 ;;
+    esac
+    # (b) Overlay on -> reflects the on capabilities.
+    mkdir -p "${nooverlay}/.pi"
+    printf '%s\n' 'graphify: true' 'codegraph: true' >"${nooverlay}/.pi/capabilities.yaml"
+    on_payload="$(overlay_probe "${nooverlay}")"
+    case "${on_payload}" in
+      *'"graphify":true'*'"codegraph":true'*) ;;
+      *) echo "expected graphify+codegraph on, got: ${on_payload}" >&2; exit 1 ;;
+    esac
+    # (c) Malformed overlay YAML -> exit 2 (fail closed).
+    printf ':\n  [\n' >"${nooverlay}/.pi/capabilities.yaml"
+    status=0
+    overlay_probe "${nooverlay}" >/dev/null 2>"${tmp}/badoverlay.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'invalid overlay YAML' "${tmp}/badoverlay.err"
+    # (d) Schema error (unknown key) -> exit 2.
+    printf '%s\n' 'graphify: true' 'kittens: true' >"${nooverlay}/.pi/capabilities.yaml"
+    status=0
+    overlay_probe "${nooverlay}" >/dev/null 2>"${tmp}/badkey.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'unknown key.*kittens' "${tmp}/badkey.err"
+    rm -rf "${nooverlay}"
     echo "smoke ok"
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/subagent.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/subagent.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
+      "{{root}}/extensions/capabilities.ts" \
       "{{root}}/extensions/status-line.ts" \
       "{{root}}/extensions/subagent.ts" "{{root}}/extensions/subagentHelpers.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external

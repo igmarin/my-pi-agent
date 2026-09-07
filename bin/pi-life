@@ -125,6 +125,51 @@ read_profile() {
   )
 }
 
+# Issue #11: read the project overlay (<cwd>/.pi/capabilities.yaml), if present,
+# and print it as a single JSON line on stdout. Missing file = all off (print
+# EMPTY_OVERLAY). Malformed YAML or schema = exit 2 (fail closed per issue).
+#
+# The script path is resolved from BASH_SOURCE[0] so MY_PI_AGENT_HOME overrides
+# (used in tests to point at a custom profiles/ dir) do not break the import.
+read_overlay() {
+  local cwd="$1"
+  local script
+  script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
+  (
+    cd "$(dirname "${script}")/.."
+    bun -e '
+      import { parse } from "yaml";
+      import { readFileSync, existsSync } from "node:fs";
+      import { join } from "node:path";
+      import { serializeOverlayEnv, parseOverlayDoc, OverlayParseError, EMPTY_OVERLAY } from "'"${script}"'";
+      const cwd = process.argv[1];
+      const overlayPath = join(cwd, ".pi", "capabilities.yaml");
+      if (!existsSync(overlayPath)) {
+        process.stdout.write(serializeOverlayEnv(EMPTY_OVERLAY) + "\n");
+        process.exit(0);
+      }
+      let doc;
+      try {
+        doc = parse(readFileSync(overlayPath, "utf8"));
+      } catch (e) {
+        console.error("pi-life: invalid overlay YAML: " + (e instanceof Error ? e.message : String(e)));
+        process.exit(2);
+      }
+      let overlay;
+      try {
+        overlay = parseOverlayDoc(doc);
+      } catch (e) {
+        if (e instanceof OverlayParseError) {
+          console.error("pi-life: " + e.message);
+          process.exit(2);
+        }
+        throw e;
+      }
+      process.stdout.write(serializeOverlayEnv(overlay) + "\n");
+    ' "${cwd}"
+  )
+}
+
 # Globals: skill_names, pi_args
 # required=1 fail closed; required=0 warn and continue
 add_named_skill() {
@@ -162,7 +207,7 @@ launch_life() {
 
   local skills_home="${PI_SKILLS_HOME:-${HOME}/.agents/skills}"
   skill_names=""
-  pi_args=(-e "${root}/extensions/damage-control-continue.ts" --no-skills)
+  pi_args=(-e "${root}/extensions/damage-control-continue.ts" -e "${root}/extensions/capabilities.ts" --no-skills)
   if [[ "${mode}" == "solo" ]]; then
     pi_args+=(-e "${root}/extensions/status-line.ts")
   fi
@@ -179,6 +224,11 @@ launch_life() {
     esac
   done <<<"${rows}"
 
+  # Issue #11: read the project overlay and export it to the capabilities
+  # extension as PI_OVERLAY. Missing file = empty overlay; bad YAML = exit 2.
+  local overlay
+  overlay="$(read_overlay "${PWD}")" || exit 2
+  export PI_OVERLAY="${overlay}"
   export MY_PI_AGENT_HOME="${root}"
   export PI_LIFE="${life}"
 
