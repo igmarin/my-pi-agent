@@ -32,6 +32,9 @@ smoke:
     export PI_SKILLS_HOME="${tmp}"
 
     rust_out="$("${bin}" --dry-run rust 2>"${tmp}/rust.err")"
+    rust_solo_out="$("${bin}" --dry-run rust solo 2>"${tmp}/rust-solo.err")"
+    rust_chain_out="$("${bin}" --dry-run rust chain 2>"${tmp}/rust-chain.err")"
+    rust_team_out="$("${bin}" --dry-run rust team 2>"${tmp}/rust-team.err")"
     elixir_out="$("${bin}" --dry-run elixir 2>"${tmp}/elixir.err")"
     ruby_out="$("${bin}" --dry-run ruby 2>"${tmp}/ruby.err")"
     rails_out="$("${bin}" --dry-run rails 2>"${tmp}/rails.err")"
@@ -47,6 +50,11 @@ smoke:
     ! grep -q -- "elixir-phoenix-skills" <<<"${rust_out}"
     ! grep -q -- "rails-agent-skills" <<<"${rust_out}"
     grep -q 'missing pack rust-core-skills' "${tmp}/rust.err"
+
+    echo "${rust_out}" | grep -q -- "-e ${root}/extensions/status-line.ts"
+    echo "${rust_solo_out}" | grep -q -- "-e ${root}/extensions/status-line.ts"
+    ! grep -q -- "status-line.ts" <<<"${rust_chain_out}"
+    ! grep -q -- "status-line.ts" <<<"${rust_team_out}"
 
     echo "${elixir_out}" | grep -q -- "--skill ${tmp}/elixir-phoenix-skills"
     ! grep -q -- "github-issue" <<<"${elixir_out}"
@@ -154,7 +162,19 @@ smoke:
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
+      "{{root}}/extensions/status-line.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
+    bun -e '
+      import { formatTurnLine } from "./extensions/status-line.ts";
+      const noop = (_, s) => s;
+      const ready = formatTurnLine("ready", 0, { fg: noop });
+      if (ready !== " Ready") { console.error("ready expected \" Ready\", got", JSON.stringify(ready)); process.exit(1); }
+      const running = formatTurnLine("running", 3, { fg: noop });
+      if (running !== "● Turn 3...") { console.error("running expected \"● Turn 3...\", got", JSON.stringify(running)); process.exit(1); }
+      const done = formatTurnLine("done", 3, { fg: noop });
+      if (done !== "✓ Turn 3 complete") { console.error("done expected \"✓ Turn 3 complete\", got", JSON.stringify(done)); process.exit(1); }
+      console.log("status-line format ok");
+    '
     bun -e '
       import { parse } from "yaml";
       import { readFileSync } from "node:fs";
