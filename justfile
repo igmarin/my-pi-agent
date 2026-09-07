@@ -273,13 +273,30 @@ smoke:
     fi
     rm -rf "${nooverlay}" "${overlay_life}" "${overlay_profile}" "${dumprel}" \
            "${notrack_overlay_life}" "${notrack_overlay_profile}"
+    # Issue #6: agent-chain. (a) shared harness default parses and resolves.
+    MY_PI_AGENT_HOME="{{root}}" bun -e '
+      import { resolveChainFile, parseChainFile, renderStepTask } from "{{root}}/extensions/agent-chain.ts";
+      const file = resolveChainFile(process.cwd(), import.meta.url, undefined);
+      if (!file) { console.error("agent-chain: no default chain file resolved"); process.exit(1); }
+      const chains = parseChainFile(await Bun.file(file.path).text());
+      const pbr = chains.get("plan-build-review");
+      if (!pbr) { console.error("agent-chain: plan-build-review missing"); process.exit(1); }
+      if (pbr.steps.map((s) => s.agent).join(",") !== "planner,builder,reviewer") {
+        console.error("agent-chain: wrong default steps", pbr.steps); process.exit(1);
+      }
+      if (renderStepTask("A {task} {previous}", "T", "") !== "A T ") {
+        console.error("agent-chain: renderStepTask"); process.exit(1);
+      }
+      console.log("agent-chain default chain ok");
+    '
     echo "smoke ok"
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/subagent.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
       "{{root}}/extensions/capabilities.ts" \
       "{{root}}/extensions/clarify-gate.ts" \
+      "{{root}}/extensions/agent-chain.ts" \
       "{{root}}/extensions/status-line.ts" \
       "{{root}}/extensions/subagent.ts" "{{root}}/extensions/subagentHelpers.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
