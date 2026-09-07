@@ -147,14 +147,17 @@ export interface BuildChildArgvOptions {
 }
 
 /**
- * Build the child `pi` argv. `-e damage-control-continue.ts` is the first flag
- * (INV-skills). When the agent has a body we insert a `<prompt-file>` slot
- * that the caller replaces with a real path before spawn.
+ * Build the child `pi` argv. INV-skills requires the first two tokens to be
+ * `-e <harness>/extensions/damage-control-continue.ts --no-skills` so the
+ * safety gate is always present and only allowlisted `--skill` paths are
+ * loaded. When the agent has a body we insert a `<prompt-file>` slot that the
+ * caller replaces with a real path before spawn.
  */
 export function buildChildArgv(harnessRoot: string, opts: BuildChildArgvOptions): string[] {
 	const argv: string[] = [
 		"-e",
 		path.join(harnessRoot, "extensions", "damage-control-continue.ts"),
+		"--no-skills",
 		"--mode",
 		"json",
 		"-p",
@@ -336,6 +339,14 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 				stdio: ["ignore", "pipe", "pipe"],
 			});
 			let buffer = "";
+			let killedBySignal = false;
+			let killTimer: ReturnType<typeof setTimeout> | null = null;
+			const clearKillTimer = () => {
+				if (killTimer) {
+					clearTimeout(killTimer);
+					killTimer = null;
+				}
+			};
 			proc.stdout.on("data", (data) => {
 				buffer += data.toString();
 				const lines = buffer.split("\n");
@@ -346,15 +357,34 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 				result.stderr += data.toString();
 			});
 			proc.on("close", (code) => {
+				clearKillTimer();
 				if (buffer.trim()) parseSubagentLine(buffer, result);
-				resolve(code ?? 0);
+				// `code === null` means killed by signal (SIGTERM/SIGKILL/abort).
+				// Treat that as a non-zero exit and surface "aborted" so downstream
+				// code can detect and fail closed.
+				if (code === null) {
+					killedBySignal = true;
+					result.stopReason = "aborted";
+					result.errorMessage = killedBySignal && opts.signal?.aborted
+						? "aborted by caller signal"
+						: "killed by signal";
+					resolve(1);
+					return;
+				}
+				resolve(code);
 			});
-			proc.on("error", () => resolve(1));
+			proc.on("error", (err) => {
+				clearKillTimer();
+				result.errorMessage = err.message;
+				result.stderr = (result.stderr + err.message + "\n").trim();
+				resolve(1);
+			});
 			if (opts.signal) {
 				const kill = () => {
 					proc.kill("SIGTERM");
-					setTimeout(() => {
+					killTimer = setTimeout(() => {
 						if (!proc.killed) proc.kill("SIGKILL");
+						killTimer = null;
 					}, 5000);
 				};
 				if (opts.signal.aborted) kill();

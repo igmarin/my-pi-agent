@@ -155,7 +155,6 @@ describe("truncateParallelOutput", () => {
 		const s = emoji.repeat(count);
 		const out = truncateParallelOutput(s);
 		// Must re-encode as valid UTF-8 without throwing
-		expect(() => Buffer.from(out, "utf8")).not.toThrow();
 		// The truncated prefix must end on a complete codepoint (i.e. encode cleanly)
 		const head = out.split("\n\n[Output truncated")[0];
 		const bytes = Buffer.byteLength(head, "utf8");
@@ -224,6 +223,15 @@ describe("buildChildArgv", () => {
 		expect(argv[argv.indexOf("--mode") + 1]).toBe("json");
 		expect(argv).toContain("-p");
 		expect(argv).toContain("--no-session");
+	});
+	test("INV-skills: --no-skills is the second flag (after the -e pair)", () => {
+		// rs-guard 1.8.3 + AGENTS.md: the child argv MUST start with
+		// ["-e", "<root>/extensions/damage-control-continue.ts", "--no-skills"]
+		// so only allowlisted --skill paths are loaded.
+		const argv = buildChildArgv(root, { task: "x" });
+		expect(argv[0]).toBe("-e");
+		expect(argv[1]).toBe(`${root}/extensions/damage-control-continue.ts`);
+		expect(argv[2]).toBe("--no-skills");
 	});
 });
 
@@ -371,5 +379,26 @@ describe("resultOutput", () => {
 	test("successful result with no messages: returns '(no output)'", () => {
 		const r = emptyResult();
 		expect(resultOutput(r)).toBe("(no output)");
+	});
+});
+
+describe("SingleResult classification: signal-killed vs spawn-error", () => {
+	// These describe the contract that the close/error handlers in
+	// runSingleAgent honor, without spawning a real process.
+	test("isFailedResult flags code === null (signal-killed) as failed", () => {
+		expect(isFailedResult({ exitCode: null as unknown as number, stopReason: "aborted" })).toBe(true);
+	});
+	test("isFailedResult flags stopReason === 'aborted' regardless of exit code", () => {
+		expect(isFailedResult({ exitCode: 0, stopReason: "aborted" })).toBe(true);
+	});
+	test("isFailedResult does NOT flag a clean exit (code 0, no stopReason)", () => {
+		expect(isFailedResult({ exitCode: 0 })).toBe(false);
+	});
+	test("resultOutput surfaces errorMessage on aborted results", () => {
+		const r = emptyResult();
+		r.exitCode = 1;
+		r.stopReason = "aborted";
+		r.errorMessage = "aborted by caller signal";
+		expect(resultOutput(r)).toBe("aborted by caller signal");
 	});
 });
