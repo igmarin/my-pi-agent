@@ -25,6 +25,13 @@ Run from the target repo. Does not require a justfile there.
 EOF
 }
 
+# Issue #13: prefix each line of $1 with 'warning: ' on stderr (matches the
+# rest of pi-life, which writes diagnostics to stderr). Multi-line input is
+# prefixed line by line.
+doctor_warn() {
+  printf '%s\n' "$1" | sed 's/^/warning: /' >&2
+}
+
 # Issue #18: required core.excludesfile patterns
 REQUIRED_EXCLUDES=("node_modules" ".pi/agent-sessions/" ".env" "graphify-out/" ".codegraph/")
 
@@ -395,25 +402,25 @@ main() {
         while IFS=$'\t' read -r kind name; do
           [[ "${kind}" == "pack" ]] || continue
           if [[ ! -e "${skills_home}/${name}" ]]; then
-            printf 'warning: missing pack %s (%s)\n' "${name}" "${skills_home}/${name}"
+            doctor_warn "missing pack ${name} (${skills_home}/${name})"
             optional=$((optional + 1))
           fi
         done <<< "${profile_out}"
       fi
 
       if ! command -v just >/dev/null 2>&1; then
-        printf 'warning: just not on PATH\n'
+        doctor_warn "just not on PATH"
         optional=$((optional + 1))
       fi
       if ! command -v rs-guard >/dev/null 2>&1; then
-        printf 'warning: rs-guard not on PATH\n'
+        doctor_warn "rs-guard not on PATH"
         optional=$((optional + 1))
       fi
       local ex_rc=0
       local ex_out
       ex_out="$(check_excludesfile 2>&1)" || ex_rc=$?
       if [[ "${ex_rc}" -ne 0 ]]; then
-        printf 'warning: %s\n' "${ex_out}"
+        doctor_warn "${ex_out}"
         optional=$((optional + 1))
       fi
       if [[ "${optional}" -eq 0 ]]; then
