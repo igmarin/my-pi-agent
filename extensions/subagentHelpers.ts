@@ -18,6 +18,11 @@ import type { AgentDef } from "./agentScan.ts";
 export const MAX_PARALLEL_TASKS = 8;
 export const MAX_CONCURRENCY = 4;
 export const PER_TASK_OUTPUT_CAP = 50 * 1024;
+// Aggregate cap on the synthesized parallel-mode tool output. At MAX_PARALLEL_TASKS
+// tasks each truncated to PER_TASK_OUTPUT_CAP, the joined summary would be ~400 KiB
+// — too large to paste as a context message. 200 KiB keeps the full picture when
+// most tasks are small, and still fits when most are at the per-task cap.
+export const MAX_PARALLEL_OUTPUT_BYTES = 200 * 1024;
 
 export interface UsageStats {
 	input: number;
@@ -78,6 +83,8 @@ export interface SubagentDetails {
 
 export function formatTokens(n: number): string {
 	if (n < 1000) return n.toString();
+	// 1000–9999 → one decimal ("1.0k"–"9.9k"). 10000+ rounds to whole ("10k", "999k")
+	// so the output stays in the 4-5 char range and aligns visually in tooltips.
 	if (n < 10_000) return `${(n / 1000).toFixed(1)}k`;
 	if (n < 1_000_000) return `${Math.round(n / 1000)}k`;
 	return `${(n / 1_000_000).toFixed(1)}M`;
@@ -130,12 +137,44 @@ export function resultOutput(r: SingleResult): string {
 	return getFinalOutput(r.messages) || "(no output)";
 }
 
+/**
+ * Truncate a string to ≤ PER_TASK_OUTPUT_CAP bytes, then append a one-line
+ * "[Output truncated: N bytes omitted.]" annotation. The annotation itself
+ * counts toward the cap, so the final return is always ≤ PER_TASK_OUTPUT_CAP
+ * bytes total — callers can paste it directly into a context block.
+ */
 export function truncateParallelOutput(output: string): string {
+	const ANNOTATION_OVERHEAD = 80; // safe headroom for "[Output truncated: N bytes omitted.]"
+	const cap = Math.max(0, PER_TASK_OUTPUT_CAP - ANNOTATION_OVERHEAD);
 	if (Buffer.byteLength(output, "utf8") <= PER_TASK_OUTPUT_CAP) return output;
-	let truncated = output.slice(0, PER_TASK_OUTPUT_CAP);
-	while (Buffer.byteLength(truncated, "utf8") > PER_TASK_OUTPUT_CAP) truncated = truncated.slice(0, -1);
+	let truncated = output.slice(0, cap);
+	while (Buffer.byteLength(truncated, "utf8") > cap) truncated = truncated.slice(0, -1);
 	const dropped = Buffer.byteLength(output, "utf8") - Buffer.byteLength(truncated, "utf8");
 	return `${truncated}\n\n[Output truncated: ${dropped} bytes omitted.]`;
+}
+
+/**
+ * Enforce an aggregate byte cap on a multi-task summary. Each task summary
+ * is already truncated to PER_TASK_OUTPUT_CAP by truncateParallelOutput; this
+ * applies a second cap to the joined string. Tasks beyond the cap are dropped
+ * with a one-line "## N more tasks omitted" note.
+ */
+export function truncateAggregate(summaries: string[], cap = MAX_PARALLEL_OUTPUT_BYTES): string {
+	if (summaries.length === 0) return "";
+	const sep = "\n\n---\n\n";
+	const droppedNote = (kept: number, total: number) =>
+		kept === total ? "" : `... ${total - kept} more task(s) omitted to fit ${cap}-byte output cap.\n\n`;
+	const included: string[] = [];
+	let used = 0;
+	for (let i = 0; i < summaries.length; i++) {
+		const s = summaries[i];
+		const sepBytes = included.length === 0 ? 0 : Buffer.byteLength(sep, "utf8");
+		const sBytes = Buffer.byteLength(s, "utf8");
+		if (used + sepBytes + sBytes > cap && included.length > 0) break;
+		included.push(s);
+		used += sepBytes + sBytes;
+	}
+	return droppedNote(included.length, summaries.length) + included.join(sep);
 }
 
 export interface BuildChildArgvOptions {
@@ -360,12 +399,12 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 				clearKillTimer();
 				if (buffer.trim()) parseSubagentLine(buffer, result);
 				// `code === null` means killed by signal (SIGTERM/SIGKILL/abort).
-				// Treat that as a non-zero exit and surface "aborted" so downstream
-				// code can detect and fail closed.
-				if (code === null) {
-					killedBySignal = true;
+				// In rare cases a child can be killed by signal and still deliver a
+				// non-null code, so we also check killedBySignal below.
+				const killed = code === null || killedBySignal;
+				if (killed) {
 					result.stopReason = "aborted";
-					result.errorMessage = killedBySignal && opts.signal?.aborted
+					result.errorMessage = opts.signal?.aborted
 						? "aborted by caller signal"
 						: "killed by signal";
 					resolve(1);
@@ -381,6 +420,7 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 			});
 			if (opts.signal) {
 				const kill = () => {
+					killedBySignal = true;
 					proc.kill("SIGTERM");
 					killTimer = setTimeout(() => {
 						if (!proc.killed) proc.kill("SIGKILL");

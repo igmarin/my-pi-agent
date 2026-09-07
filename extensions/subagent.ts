@@ -1,22 +1,45 @@
 /**
  * Subagent Tool — delegate tasks to specialized agents with isolated context.
  *
- * Modes: single (agent+task), parallel (tasks[]), chain (chain[] with {previous}).
+ * ## Entry point
+ *
+ * This file exports `default function (pi: ExtensionAPI)` which calls
+ * `pi.registerTool({ name: "subagent", label: "Subagent", ... })`. Loaded
+ * via `pi -e extensions/subagent.ts`. The tool is NOT loaded by `pi-life`
+ * yet (Wave 4 work in the 0.1.0 sweep); it ships as a standalone extension
+ * that can be enabled by adding it to the per-life `-e` list in `bin/pi-life`.
+ *
+ * ## Modes
+ *
+ * - `single`  : { agent, task } — one agent, one task
+ * - `parallel`: { tasks[] }  — array of tasks, max 8, max 4 concurrent
+ * - `chain`   : { chain[] }  — sequential, `{previous}` placeholder for the
+ *                              prior step's final output, fail-fast on first
+ *                              non-zero exit
+ *
  * Children spawn `pi` in JSON mode and ALWAYS inherit
- * `-e <harness>/extensions/damage-control-continue.ts` (INV-skills). The argv
- * builder in `subagentHelpers.ts` enforces this — no caller can spawn a child
- * without it.
+ * `-e <harness>/extensions/damage-control-continue.ts --no-skills` (INV-skills).
+ * The argv builder in `subagentHelpers.ts` enforces this — no caller can spawn
+ * a child without it.
  *
- * Discovery reuses the harness's agentScan order:
- * profiles/<life>/agents/ → profiles/agents/ → cwd .pi/agents/ (first-wins).
- * The upstream user-vs-project trust prompt is dropped: this harness has no
- * such split — the harness itself is the project.
+ * ## Discovery
  *
- * The pure helpers and child-process plumbing live in `subagentHelpers.ts` so
- * the JSON-line parser, argv builder, and concurrency limiter can be exercised
- * by `bun test extensions/subagent.test.ts` without booting the `pi` host.
+ * Reuses the harness's `agentScan.collectAgents()` order:
+ * `profiles/<life>/agents/` → `profiles/agents/` → cwd `.pi/agents/`
+ * (first-wins). The upstream user-vs-project trust prompt is dropped: this
+ * harness has no such split — the harness itself is the project.
  *
- * Usage: pi -e extensions/subagent.ts
+ * ## Code layout
+ *
+ * - `subagent.ts`        — this file. Glue: schema + mode dispatch + result shaping.
+ * - `subagentHelpers.ts` — types, constants, pure helpers, child-process plumbing.
+ * - `subagent.test.ts`   — `bun test` suite, 60+ cases, exercises every pure helper
+ *                          and the JSON-line parser without spawning a `pi` child.
+ *
+ * The split is the project's "one file per concern" + testable-glue convention
+ * (mirrors `agentScan.ts` + `agentScan.test.ts`). The orchestration in
+ * `runSingleAgent` is integration-tested by `just smoke`, not by `bun test`
+ * (mocking `spawn("pi", …)` would test the mock, not the code).
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -34,6 +57,7 @@ import {
 	resolveHarnessRoot,
 	resultOutput,
 	runSingleAgent,
+	truncateAggregate,
 	truncateParallelOutput,
 } from "./subagentHelpers.ts";
 
@@ -167,28 +191,29 @@ export default function (pi: ExtensionAPI) {
 						details: makeDetails("parallel", []),
 					};
 				}
-				const results = await mapWithConcurrencyLimit(params.tasks, MAX_CONCURRENCY, (t) =>
-					run(t.agent, t.task, t.cwd),
-				);
-				const success = results.filter((r) => !isFailedResult(r)).length;
-				const summaries = results.map((r) => {
-					const status = isFailedResult(r)
-						? `failed${r.stopReason && r.stopReason !== "end" ? ` (${r.stopReason})` : ""}`
-						: "completed";
-					return `### [${r.agent}] ${status}\n\n${truncateParallelOutput(resultOutput(r))}`;
-				});
-				const totalUsage = formatUsageStats(aggregateUsage(results));
-				const tail = totalUsage ? `\n\nTotal: ${totalUsage}` : "";
-				return {
-					content: [
-						{
-							type: "text",
-							text: `Parallel: ${success}/${results.length} succeeded\n\n${summaries.join("\n\n---\n\n")}${tail}`,
-						},
-					],
-					details: makeDetails("parallel", results),
-				};
-			}
+			const results = await mapWithConcurrencyLimit(params.tasks, MAX_CONCURRENCY, (t) =>
+				run(t.agent, t.task, t.cwd),
+			);
+			const success = results.filter((r) => !isFailedResult(r)).length;
+			const summaries = results.map((r) => {
+				const status = isFailedResult(r)
+					? `failed${r.stopReason && r.stopReason !== "end" ? ` (${r.stopReason})` : ""}`
+					: "completed";
+				return `### [${r.agent}] ${status}\n\n${truncateParallelOutput(resultOutput(r))}`;
+			});
+			const body = truncateAggregate(summaries);
+			const totalUsage = formatUsageStats(aggregateUsage(results));
+			const tail = totalUsage ? `\n\nTotal: ${totalUsage}` : "";
+			return {
+				content: [
+					{
+						type: "text",
+						text: `Parallel: ${success}/${results.length} succeeded\n\n${body}${tail}`,
+					},
+				],
+				details: makeDetails("parallel", results),
+			};
+		}
 
 			// single
 			if (params.agent && params.task) {

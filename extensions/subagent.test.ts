@@ -6,9 +6,11 @@ import {
 	getFinalOutput,
 	isFailedResult,
 	mapWithConcurrencyLimit,
+	MAX_PARALLEL_OUTPUT_BYTES,
 	parseSubagentLine,
 	PER_TASK_OUTPUT_CAP,
 	resultOutput,
+	truncateAggregate,
 	truncateParallelOutput,
 	type SingleResult,
 } from "./subagentHelpers.ts";
@@ -140,10 +142,12 @@ describe("truncateParallelOutput", () => {
 		expect(Buffer.byteLength(s, "utf8")).toBe(PER_TASK_OUTPUT_CAP);
 		expect(truncateParallelOutput(s)).toBe(s);
 	});
-	test("string just over 50KB is truncated and annotated", () => {
+	test("string just over 50KB is truncated and annotated, total ≤ cap", () => {
 		const s = "a".repeat(PER_TASK_OUTPUT_CAP + 100);
 		const out = truncateParallelOutput(s);
-		expect(Buffer.byteLength(out, "utf8")).toBeLessThan(PER_TASK_OUTPUT_CAP + 100);
+		// rs-guard 1.8.3 review: the annotation must count toward the cap.
+		// Final return must never exceed PER_TASK_OUTPUT_CAP bytes.
+		expect(Buffer.byteLength(out, "utf8")).toBeLessThanOrEqual(PER_TASK_OUTPUT_CAP);
 		expect(out).toMatch(/\[Output truncated: \d+ bytes omitted\.\]$/);
 		const dropped = Number(out.match(/truncated: (\d+) bytes/)![1]);
 		expect(dropped).toBeGreaterThan(0);
@@ -400,5 +404,54 @@ describe("SingleResult classification: signal-killed vs spawn-error", () => {
 		r.stopReason = "aborted";
 		r.errorMessage = "aborted by caller signal";
 		expect(resultOutput(r)).toBe("aborted by caller signal");
+	});
+});
+
+describe("truncateAggregate", () => {
+	test("empty input returns empty string", () => {
+		expect(truncateAggregate([])).toBe("");
+	});
+	test("single summary under cap is returned unchanged", () => {
+		const s = "### [a] completed\n\nshort body";
+		expect(truncateAggregate([s])).toBe(s);
+	});
+	test("3 summaries well under cap are all joined", () => {
+		const s1 = "### [a] completed\n\nbody 1";
+		const s2 = "### [b] completed\n\nbody 2";
+		const s3 = "### [c] completed\n\nbody 3";
+		const out = truncateAggregate([s1, s2, s3]);
+		expect(out).toContain("body 1");
+		expect(out).toContain("body 2");
+		expect(out).toContain("body 3");
+		expect(out).not.toContain("omitted");
+	});
+	test("summaries exceeding cap: some dropped, note added", () => {
+		// Each summary is 1 KiB; cap defaults to 200 KiB; 250 summaries → ~250 KiB
+		const summaries = Array.from({ length: 250 }, (_, i) => `### [t${i}] done\n\n${"x".repeat(1000)}`);
+		const out = truncateAggregate(summaries);
+		expect(Buffer.byteLength(out, "utf8")).toBeLessThanOrEqual(MAX_PARALLEL_OUTPUT_BYTES + 100);
+		expect(out).toMatch(/\d+ more task\(s\) omitted to fit \d+-byte output cap\./);
+		// First summary always included
+		expect(out).toContain("### [t0]");
+		// Last summary likely dropped
+		expect(out).not.toContain("### [t249]");
+	});
+	test("custom cap: small cap drops most summaries", () => {
+		const summaries = Array.from({ length: 10 }, (_, i) => `summary ${i}: ${"x".repeat(200)}`);
+		const out = truncateAggregate(summaries, 500);
+		expect(Buffer.byteLength(out, "utf8")).toBeLessThanOrEqual(500);
+		expect(out).toMatch(/omitted/);
+	});
+});
+
+describe("buildChildArgv — coverage of chain-mode args", () => {
+	// Chain mode uses the same argv builder; the {previous} substitution
+	// happens in the glue (subagent.ts) before calling buildChildArgv.
+	// Here we verify that the {previous} token (if it ever leaked into a task)
+	// is passed through verbatim — no special handling in the builder.
+	const root = "/tmp/pi-life-test";
+	test("{previous} placeholder in task is passed verbatim to the child", () => {
+		const argv = buildChildArgv(root, { task: "summarize: {previous}" });
+		expect(argv[argv.length - 1]).toBe("Task: summarize: {previous}");
 	});
 });
