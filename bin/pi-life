@@ -362,10 +362,9 @@ main() {
       printf 'harness: %s\n' "${root}"
       printf 'cwd: %s\n' "${PWD}"
 
-      local overlay
-      overlay="$(read_overlay "${PWD}")" || exit 2
-      printf 'overlay: %s\n' "${overlay}"
-
+      # Check required launcher pieces BEFORE read_overlay: it spawns bun, so
+      # a missing bun must surface as a clean "required: FAIL missing: bun",
+      # not as an opaque failure inside the overlay read.
       local missing=()
       command -v pi >/dev/null 2>&1 || missing+=("pi")
       command -v bun >/dev/null 2>&1 || missing+=("bun")
@@ -374,6 +373,10 @@ main() {
         exit 2
       fi
       printf 'required: ok\n'
+
+      local overlay
+      overlay="$(read_overlay "${PWD}")" || exit 2
+      printf 'overlay: %s\n' "${overlay}"
 
       local optional=0
       local skills_home="${PI_SKILLS_HOME:-${HOME}/.agents/skills}"

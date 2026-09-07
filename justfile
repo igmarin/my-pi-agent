@@ -187,7 +187,20 @@ smoke:
     out="$(cd "${doc_badprof_cwd}" && MY_PI_AGENT_HOME="${doc_badprof_home}" PI_SKILLS_HOME="${tmp}" "${bin}" doctor ruby 2>&1)" || status=$?
     test "${status}" -eq 2
     grep -q 'must be a string or list of strings' <<<"${out}"
-    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_bad}" "${doc_badprof_home}" "${doc_badprof_cwd}"
+    # (m) doctor with an existing overlay but bun absent from PATH -> clean
+    # "required: FAIL missing: bun" (checked before read_overlay spawns bun).
+    doc_nobun_home="$(mktemp -d)"
+    mkdir -p "${doc_nobun_home}/bin"
+    printf '%s\n' '#!/bin/bash' 'exit 0' >"${doc_nobun_home}/bin/pi"
+    chmod +x "${doc_nobun_home}/bin/pi"
+    doc_nobun_cwd="$(mktemp -d)"
+    mkdir -p "${doc_nobun_cwd}/.pi"
+    printf '%s\n' 'graphify: true' >"${doc_nobun_cwd}/.pi/capabilities.yaml"
+    status=0
+    out="$(cd "${doc_nobun_cwd}" && PATH="${doc_nobun_home}/bin:/bin:/usr/bin" MY_PI_AGENT_HOME="${doc_badprof_home}" PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
+    test "${status}" -eq 2
+    grep -q 'required: FAIL missing: bun' <<<"${out}"
+    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_bad}" "${doc_badprof_home}" "${doc_badprof_cwd}" "${doc_nobun_home}" "${doc_nobun_cwd}"
     status=0
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
