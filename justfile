@@ -119,6 +119,33 @@ smoke:
     status=0
     "${bin}" doctor >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
+    # Issue #18: doctor-probe exercises check_excludesfile in isolation.
+    # Read-only: writes to a temp HOME/cwd, never touches the real ~/.gitignore_global.
+    probe_home="$(mktemp -d)"
+    probe_cwd="$(mktemp -d)"
+    git -C "${probe_cwd}" init -q
+    probe_ignore="${probe_home}/fake-gitignore-global"
+    printf 'node_modules\n.pi/agent-sessions/\n.env\ngraphify-out/\n.codegraph/\n' >"${probe_ignore}"
+    git -C "${probe_cwd}" config core.excludesfile "${probe_ignore}"
+    status=0
+    out="$(cd "${probe_cwd}" && HOME="${probe_home}" GIT_CONFIG_NOSYSTEM=1 \
+        "${bin}" doctor-probe 2>&1)" || status=$?
+    test "${status}" -eq 0
+    [[ "${out}" == *"excludesfile: ${probe_ignore} ok"* ]]
+    printf 'node_modules\n.pi/agent-sessions/\ngraphify-out/\n.codegraph/\n' >"${probe_ignore}"
+    status=0
+    out="$(cd "${probe_cwd}" && HOME="${probe_home}" GIT_CONFIG_NOSYSTEM=1 \
+        "${bin}" doctor-probe 2>&1)" || status=$?
+    test "${status}" -eq 1
+    [[ "${out}" == *"missing patterns: .env"* ]]
+    # Unsetting the local value falls back to global, which is empty under the temp HOME.
+    git -C "${probe_cwd}" config --unset core.excludesfile
+    status=0
+    out="$(cd "${probe_cwd}" && HOME="${probe_home}" GIT_CONFIG_NOSYSTEM=1 \
+        "${bin}" doctor-probe 2>&1)" || status=$?
+    test "${status}" -eq 1
+    [[ "${out}" == *"missing patterns:"* ]]
+    rm -rf "${probe_home}" "${probe_cwd}"
     status=0
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
