@@ -38,6 +38,10 @@ _Avoid_: environment (overloaded)
 This repo: extensions, profiles, `pi-life`, doctor. Host is Pi.
 _Avoid_: runtime, orchestrator, framework
 
+**Doctor**:
+`pi-life doctor [life]` health check (replaces the pre-#13 stub). Fail-closed (exit 2): `pi`, `bun`, overlay parse failure. Warns and exits 0: optional gaps (missing packs for the given `[life]`, `just`, `rs-guard`, `core.excludesfile` patterns). Prints the report keys `life`/`harness`/`cwd`/`overlay`/`required`/`optional`. Diagnostics (warnings, parse errors) go to stderr; the report goes to stdout.
+_Avoid_: diagnostics on stdout (warnings are `warning: `-prefixed on stderr)
+
 **Mantra**:
 Always-on skill overlay for every life: `i-have-adhd`, `ponytail`, `deslop`, `clarify`, TDD gate, per-life constraint style. Backed by the clarify-gate extension, which blocks `write` and `edit` tool calls until the user runs `/clarify` to accept the prompt; read-only tools stay available. The gate is per-session: once opened, it stays open. Print/JSON mode skips the gate.
 _Avoid_: system prompt (the prompt is how mantra is injected)

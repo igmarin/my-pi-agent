@@ -399,6 +399,8 @@ main() {
         if [[ "${profile_rc}" -ne 0 ]]; then
           exit 2
         fi
+        # read_profile prints "kind\tname" rows for mantra/pack/tracker. Only
+        # packs are doctor-relevant; any other kind is intentionally ignored.
         while IFS=$'\t' read -r kind name; do
           [[ "${kind}" == "pack" ]] || continue
           if [[ ! -e "${skills_home}/${name}" ]]; then
