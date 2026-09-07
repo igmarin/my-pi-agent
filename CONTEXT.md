@@ -15,8 +15,12 @@ Optional GraphQL or REST skill set loaded on a life. Not a fifth life.
 _Avoid_: calling GraphQL/REST a life
 
 **Profile**:
-Named launch config for a life: extensions, skill allowlist, tracker, provider class, model policy. Stored as YAML under `profiles/<life>.yaml`. Launch is `-e damage-control-continue` then `--no-skills` then allowlisted `--skill`. Invalid YAML, a missing mantra path, or a missing configured tracker path fails closed (exit 2). Omit tracker (elixir) or `tracker: none` = no tracker skill. Missing packs warn.
+Named launch config for a life: extensions, skill allowlist, tracker, provider class, model policy. Stored as YAML under `profiles/<life>.yaml`. Launch is `-e extensions/damage-control-continue.ts` then `--no-skills` then allowlisted `--skill`. **Solo mode also appends** `-e extensions/status-line.ts` (turn counter in the footer; chain/team do not load it). Invalid YAML, a missing mantra path, or a missing configured tracker path fails closed (exit 2). Omit tracker (elixir) or `tracker: none` = no tracker skill. Missing packs warn.
 _Avoid_: theme, preset; TOML for harness config
+
+**Solo**:
+Default launch mode. The single primary Pi session with the full per-life toolset, the solo-only status-line extension, and the solo allowlist. The other modes (`chain`, `team`) do not load the status line and (until #6/#8 land) use the solo allowlist too.
+_Avoid_: single, default (ambiguous; "solo" names the harness mode specifically)
 
 **Agent (persona)**:
 YAML under `profiles/<life>/agents/` or shared `profiles/agents/`, then cwd `.pi/agents/`, then `.claude/.gemini/.codex` (cwd then home). First name wins. `cross-agent` registers `/name` and `/skill:name`. `system-select` `/system` prepends the chosen body. Not passed by `pi-life` yet.
