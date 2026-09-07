@@ -54,9 +54,11 @@ function asBool(value: unknown, key: string): boolean {
 
 function asStringList(value: unknown, key: string): string[] {
 	if (value == null) return [];
-	const arr = Array.isArray(value) ? value : [value];
+	if (!Array.isArray(value)) {
+		throw new OverlayParseError(`overlay: ${key} must be a list of non-empty strings (got ${typeof value})`);
+	}
 	const out: string[] = [];
-	for (const item of arr) {
+	for (const item of value) {
 		if (typeof item !== "string" || !item) {
 			throw new OverlayParseError(`overlay: ${key} must be a list of non-empty strings`);
 		}
@@ -101,6 +103,13 @@ export function parseOverlayDoc(doc: unknown): Overlay {
 	const trackerRaw = doc.tracker;
 	let trackerSkill: string | null = null;
 	if (isPlainMapping(trackerRaw)) {
+		const trackerUnknown: string[] = [];
+		for (const k of Object.keys(trackerRaw)) {
+			if (k !== "skill") trackerUnknown.push(k);
+		}
+		if (trackerUnknown.length > 0) {
+			throw new OverlayParseError(`overlay: tracker has unknown key(s): ${trackerUnknown.join(", ")}`);
+		}
 		if (!("skill" in trackerRaw)) {
 			throw new OverlayParseError("overlay: tracker requires a 'skill' key when present");
 		}

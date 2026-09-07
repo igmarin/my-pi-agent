@@ -56,10 +56,9 @@ describe("parseOverlayDoc", () => {
 		expect(o.trackerSkill).toBeNull();
 	});
 
-	test("extra_skills must be a list of non-empty strings", () => {
-		expect(() => parseOverlayDoc({ extra_skills: "single" })).not.toThrow();
-		expect(parseOverlayDoc({ extra_skills: "single" }).extraSkills).toEqual(["single"]);
+	test("extra_skills must be a list of non-empty strings (no scalar coercion)", () => {
 		expect(parseOverlayDoc({ extra_skills: ["a", "b"] }).extraSkills).toEqual(["a", "b"]);
+		expect(() => parseOverlayDoc({ extra_skills: "single" })).toThrow(/must be a list/);
 		expect(() => parseOverlayDoc({ extra_skills: [""] })).toThrow(/non-empty strings/);
 		expect(() => parseOverlayDoc({ extra_skills: [42] })).toThrow(/non-empty strings/);
 	});
@@ -69,6 +68,19 @@ describe("parseOverlayDoc", () => {
 		expect(() => parseOverlayDoc({ tracker: {} })).toThrow(/tracker requires a 'skill' key/);
 		expect(() => parseOverlayDoc({ tracker: { skill: "" } })).toThrow(/tracker.skill must be a non-empty string/);
 		expect(parseOverlayDoc({ tracker: { skill: "local/tracker" } }).trackerSkill).toBe("local/tracker");
+	});
+
+	test("tracker rejects unknown keys (fail closed)", () => {
+		expect(() => parseOverlayDoc({ tracker: { skill: "x", retries: 3 } })).toThrow(/tracker has unknown key.*retries/);
+		expect(() => parseOverlayDoc({ tracker: { skill: "x", project: "y" } })).toThrow(/tracker has unknown key.*project/);
+	});
+
+	test("fast-path EMPTY_OVERLAY JSON matches serializeOverlayEnv(EMPTY_OVERLAY)", () => {
+		// The bash read_overlay fast path inlines this JSON for the no-overlay
+		// case. If the capability key list ever changes, this assertion will
+		// fail, forcing the bash literal to be updated alongside.
+		const expected = '{"capabilities":{"graphify":false,"codegraph":false,"serena":false,"rs-guard":false,"obscura":false,"playwright":false},"extraSkills":[],"trackerSkill":null}';
+		expect(serializeOverlayEnv(EMPTY_OVERLAY)).toBe(expected);
 	});
 
 	test("full overlay round-trip from real YAML", () => {

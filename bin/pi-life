@@ -8,6 +8,7 @@ usage() {
 Usage: pi-life [--dry-run] <life> [solo|chain|team]
        pi-life doctor
        pi-life doctor-probe
+       pi-life --dump-overlay <cwd>
        pi-life --help
 
 Lives: rust | elixir | ruby | python
@@ -131,23 +132,29 @@ read_profile() {
 #
 # The script path is resolved from BASH_SOURCE[0] so MY_PI_AGENT_HOME overrides
 # (used in tests to point at a custom profiles/ dir) do not break the import.
+# The module specifier is passed via env var (OVERLAY_MODULE) so paths with
+# single quotes or other JS-significant characters are safe.
 read_overlay() {
   local cwd="$1"
   local script
   script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
+  # Fast path: no overlay file = all off. Avoids the bun spawn on the common
+  # no-overlay launch. EMPTY_OVERLAY is the canonical all-off payload; the
+  # bun path below produces the same value for verification.
+  if [[ ! -f "${cwd}/.pi/capabilities.yaml" ]]; then
+    printf '%s\n' '{"capabilities":{"graphify":false,"codegraph":false,"serena":false,"rs-guard":false,"obscura":false,"playwright":false},"extraSkills":[],"trackerSkill":null}'
+    return 0
+  fi
   (
     cd "$(dirname "${script}")/.."
-    bun -e '
+    OVERLAY_MODULE="${script}" bun -e '
       import { parse } from "yaml";
-      import { readFileSync, existsSync } from "node:fs";
+      import { readFileSync } from "node:fs";
       import { join } from "node:path";
-      import { serializeOverlayEnv, parseOverlayDoc, OverlayParseError, EMPTY_OVERLAY } from "'"${script}"'";
+      const mod = await import(process.env.OVERLAY_MODULE);
+      const { serializeOverlayEnv, parseOverlayDoc, OverlayParseError } = mod;
       const cwd = process.argv[1];
       const overlayPath = join(cwd, ".pi", "capabilities.yaml");
-      if (!existsSync(overlayPath)) {
-        process.stdout.write(serializeOverlayEnv(EMPTY_OVERLAY) + "\n");
-        process.exit(0);
-      }
       let doc;
       try {
         doc = parse(readFileSync(overlayPath, "utf8"));
@@ -293,6 +300,18 @@ main() {
         exit 2
       fi
       check_excludesfile
+      exit $?
+      ;;
+    --dump-overlay)
+      # Print the overlay for <cwd> as a single JSON line on stdout. Used by
+      # smoke tests and by `pi-life doctor` (issue #13) to introspect the
+      # resolved overlay without launching Pi. Exits 2 on bad YAML or schema.
+      if [[ $# -ne 2 ]]; then
+        printf 'pi-life: --dump-overlay requires a cwd argument\n' >&2
+        usage >&2
+        exit 2
+      fi
+      read_overlay "${2}"
       exit $?
       ;;
   esac
