@@ -158,11 +158,12 @@ smoke:
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
     echo "smoke ok"
-    bun test "{{root}}/extensions/agentScan.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/subagent.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
       "{{root}}/extensions/status-line.ts" \
+      "{{root}}/extensions/subagent.ts" "{{root}}/extensions/subagentHelpers.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
     bun -e '
       import { formatTurnLine } from "./extensions/status-line.ts";

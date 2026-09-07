@@ -50,6 +50,10 @@ _Avoid_: plugin, MCP (MCP is one way to expose a capability)
 Sequential roles (`plan → build → review`). Primary Pi may still do small solo work.
 _Avoid_: pipeline, workflow (those include overnight/unattended systems)
 
+**Subagent**:
+Tool that delegates a task to a specialized agent with an isolated context window. Three modes: `single` (one agent, one task), `parallel` (array of tasks, max 8, max 4 concurrent), `chain` (sequential with `{previous}` placeholder, fail-fast on first non-zero exit). Children spawn `pi` in JSON mode and inherit `-e extensions/damage-control-continue.ts --no-skills` (INV-skills). Agent discovery reuses the harness's first-wins order: `profiles/<life>/agents/` → `profiles/agents/` → cwd `.pi/agents/`. Implementation: `extensions/subagent.ts` (glue) + `extensions/subagentHelpers.ts` (types, pure helpers, child-process plumbing) + `extensions/subagent.test.ts` (bun test).
+_Avoid_: orchestrator, multi-agent (overloaded; "subagent" is the harness's name for the single-tool delegation)
+
 **Team**:
 Dispatcher-only mode. Primary Pi has no codebase tools.
 _Avoid_: swarm, crew
