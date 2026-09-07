@@ -1,0 +1,375 @@
+import { describe, expect, test } from "bun:test";
+import {
+	buildChildArgv,
+	formatTokens,
+	formatUsageStats,
+	getFinalOutput,
+	isFailedResult,
+	mapWithConcurrencyLimit,
+	parseSubagentLine,
+	PER_TASK_OUTPUT_CAP,
+	resultOutput,
+	truncateParallelOutput,
+	type SingleResult,
+} from "./subagentHelpers.ts";
+
+function emptyResult(): SingleResult {
+	return {
+		agent: "x",
+		agentSource: "test",
+		task: "t",
+		exitCode: 0,
+		messages: [],
+		stderr: "",
+		usage: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			cost: 0,
+			contextTokens: 0,
+			turns: 0,
+		},
+	};
+}
+
+describe("formatTokens", () => {
+	test("0 returns '0'", () => {
+		expect(formatTokens(0)).toBe("0");
+	});
+	test("999 returns '999'", () => {
+		expect(formatTokens(999)).toBe("999");
+	});
+	test("1000 returns '1.0k'", () => {
+		expect(formatTokens(1000)).toBe("1.0k");
+	});
+	test("9999 returns '10.0k' (just under the round-to-whole-k boundary)", () => {
+		expect(formatTokens(9999)).toBe("10.0k");
+	});
+	test("10000 returns '10k'", () => {
+		expect(formatTokens(10000)).toBe("10k");
+	});
+	test("1500000 returns '1.5M'", () => {
+		expect(formatTokens(1500000)).toBe("1.5M");
+	});
+});
+
+describe("formatUsageStats", () => {
+	test("empty input returns ''", () => {
+		expect(formatUsageStats({})).toBe("");
+	});
+	test("{turns: 1} returns '1 turn' (singular)", () => {
+		expect(formatUsageStats({ turns: 1 })).toBe("1 turn");
+	});
+	test("{turns: 2} returns '2 turns' (plural)", () => {
+		expect(formatUsageStats({ turns: 2 })).toBe("2 turns");
+	});
+	test("{turns: 2, input: 1500} contains '2 turns' and '↑1.5k'", () => {
+		const u = formatUsageStats({ turns: 2, input: 1500 });
+		expect(u).toContain("2 turns");
+		expect(u).toContain("\u21911.5k");
+	});
+	test("all zeros returns '' (zeros are not emitted)", () => {
+		expect(
+			formatUsageStats({ input: 0, output: 0, turns: 0, cost: 0, contextTokens: 0 }),
+		).toBe("");
+	});
+	test("{cost: 0.001234} formats as '$0.0012' (4-decimal precision)", () => {
+		expect(formatUsageStats({ cost: 0.001234 })).toContain("$0.0012");
+	});
+	test("{contextTokens: 0} does not emit 'ctx:' (zero check)", () => {
+		expect(formatUsageStats({ contextTokens: 0 })).not.toContain("ctx:");
+	});
+	test("appends the model name at the end", () => {
+		const u = formatUsageStats({ turns: 1, input: 100 }, "gpt-5");
+		expect(u.endsWith("gpt-5")).toBe(true);
+	});
+});
+
+describe("isFailedResult", () => {
+	test("{exitCode: 0, stopReason: 'end'} is not failed", () => {
+		expect(isFailedResult({ exitCode: 0, stopReason: "end" })).toBe(false);
+	});
+	test("{exitCode: 1} is failed (non-zero exit)", () => {
+		expect(isFailedResult({ exitCode: 1 })).toBe(true);
+	});
+	test("{exitCode: 0, stopReason: 'error'} is failed", () => {
+		expect(isFailedResult({ exitCode: 0, stopReason: "error" })).toBe(true);
+	});
+	test("{exitCode: 0, stopReason: 'aborted'} is failed", () => {
+		expect(isFailedResult({ exitCode: 0, stopReason: "aborted" })).toBe(true);
+	});
+	test("{exitCode: 0, stopReason: 'end'} is not failed (control)", () => {
+		expect(isFailedResult({ exitCode: 0, stopReason: "end" })).toBe(false);
+	});
+});
+
+describe("getFinalOutput", () => {
+	test("empty messages returns ''", () => {
+		expect(getFinalOutput([])).toBe("");
+	});
+	test("user-only messages return '' (no assistant message)", () => {
+		expect(getFinalOutput([{ role: "user", content: [{ type: "text", text: "hi" }] }])).toBe("");
+	});
+	test("last assistant text wins", () => {
+		const messages = [
+			{ role: "assistant", content: [{ type: "text", text: "first" }] },
+			{ role: "assistant", content: [{ type: "text", text: "last" }] },
+		];
+		expect(getFinalOutput(messages)).toBe("last");
+	});
+	test("assistant message with only a toolCall part returns '' (non-text parts skipped)", () => {
+		const messages = [{ role: "assistant", content: [{ type: "toolCall" }] }];
+		expect(getFinalOutput(messages)).toBe("");
+	});
+	test("mixed parts: text wins over toolCall", () => {
+		const messages = [
+			{ role: "assistant", content: [{ type: "toolCall" }, { type: "text", text: "found" }] },
+		];
+		expect(getFinalOutput(messages)).toBe("found");
+	});
+});
+
+describe("truncateParallelOutput", () => {
+	test("short string is returned unchanged", () => {
+		const s = "hello world";
+		expect(truncateParallelOutput(s)).toBe(s);
+	});
+	test("string at exactly 50KB byte length is returned unchanged (<= boundary)", () => {
+		const s = "a".repeat(PER_TASK_OUTPUT_CAP);
+		expect(Buffer.byteLength(s, "utf8")).toBe(PER_TASK_OUTPUT_CAP);
+		expect(truncateParallelOutput(s)).toBe(s);
+	});
+	test("string just over 50KB is truncated and annotated", () => {
+		const s = "a".repeat(PER_TASK_OUTPUT_CAP + 100);
+		const out = truncateParallelOutput(s);
+		expect(Buffer.byteLength(out, "utf8")).toBeLessThan(PER_TASK_OUTPUT_CAP + 100);
+		expect(out).toMatch(/\[Output truncated: \d+ bytes omitted\.\]$/);
+		const dropped = Number(out.match(/truncated: (\d+) bytes/)![1]);
+		expect(dropped).toBeGreaterThan(0);
+	});
+	test("multi-byte UTF-8: does not split a codepoint, output is re-encodable", () => {
+		// 4-byte emoji repeated to exceed the cap
+		const emoji = "\u{1F600}"; // grinning face
+		const count = Math.ceil(PER_TASK_OUTPUT_CAP / 4) + 10;
+		const s = emoji.repeat(count);
+		const out = truncateParallelOutput(s);
+		// Must re-encode as valid UTF-8 without throwing
+		expect(() => Buffer.from(out, "utf8")).not.toThrow();
+		// The truncated prefix must end on a complete codepoint (i.e. encode cleanly)
+		const head = out.split("\n\n[Output truncated")[0];
+		const bytes = Buffer.byteLength(head, "utf8");
+		expect(bytes).toBeLessThanOrEqual(PER_TASK_OUTPUT_CAP);
+		// Re-encoding the head should round-trip exactly
+		expect(Buffer.from(head, "utf8").toString("utf8")).toBe(head);
+	});
+});
+
+describe("buildChildArgv", () => {
+	const root = "/harness";
+
+	test("first two args are ['-e', '<root>/extensions/damage-control-continue.ts']", () => {
+		const argv = buildChildArgv(root, { task: "x" });
+		expect(argv[0]).toBe("-e");
+		expect(argv[1]).toBe(`${root}/extensions/damage-control-continue.ts`);
+	});
+	test("task becomes the trailing 'Task: <task>' arg", () => {
+		const argv = buildChildArgv(root, { task: "hello" });
+		expect(argv[argv.length - 1]).toBe("Task: hello");
+	});
+	test("dispatchModel adds '--model <value>'", () => {
+		const argv = buildChildArgv(root, { task: "x", dispatchModel: "gpt-5" });
+		const i = argv.indexOf("--model");
+		expect(i).toBeGreaterThan(-1);
+		expect(argv[i + 1]).toBe("gpt-5");
+	});
+	test("dispatchThinkingLevel adds '--thinking <value>'", () => {
+		const argv = buildChildArgv(root, { task: "x", dispatchThinkingLevel: "high" });
+		const i = argv.indexOf("--thinking");
+		expect(i).toBeGreaterThan(-1);
+		expect(argv[i + 1]).toBe("high");
+	});
+	test("agentTools adds '--tools <comma-joined>'", () => {
+		const argv = buildChildArgv(root, { task: "x", agentTools: ["read", "bash"] });
+		const i = argv.indexOf("--tools");
+		expect(i).toBeGreaterThan(-1);
+		expect(argv[i + 1]).toBe("read,bash");
+	});
+	test("empty agentSystemPrompt does not add --append-system-prompt", () => {
+		const argv = buildChildArgv(root, { task: "x", agentSystemPrompt: "" });
+		expect(argv.includes("--append-system-prompt")).toBe(false);
+	});
+	test("non-empty agentSystemPrompt adds '--append-system-prompt <prompt-file>' placeholder", () => {
+		const argv = buildChildArgv(root, {
+			task: "x",
+			agentSystemPrompt: "you are a reviewer",
+		});
+		const i = argv.indexOf("--append-system-prompt");
+		expect(i).toBeGreaterThan(-1);
+		expect(argv[i + 1]).toBe("<prompt-file>");
+	});
+	test("INV-skills: -e damage-control-continue.ts is the very first flag pair", () => {
+		const argv = buildChildArgv(root, {
+			task: "x",
+			dispatchModel: "gpt-5",
+			agentTools: ["bash"],
+			agentSystemPrompt: "p",
+		});
+		expect(argv[0]).toBe("-e");
+		expect(argv[1]).toBe(`${root}/extensions/damage-control-continue.ts`);
+	});
+	test("--mode json, -p, --no-session are always present", () => {
+		const argv = buildChildArgv(root, { task: "x" });
+		expect(argv).toContain("--mode");
+		expect(argv[argv.indexOf("--mode") + 1]).toBe("json");
+		expect(argv).toContain("-p");
+		expect(argv).toContain("--no-session");
+	});
+});
+
+describe("mapWithConcurrencyLimit", () => {
+	test("empty input returns empty output", async () => {
+		const out = await mapWithConcurrencyLimit([], 4, async (x) => x);
+		expect(out).toEqual([]);
+	});
+	test("single item returns single result", async () => {
+		const out = await mapWithConcurrencyLimit(["a"], 4, async (x) => x);
+		expect(out).toEqual(["a"]);
+	});
+	test("10 items, concurrency 4: all results, in input order", async () => {
+		const items = Array.from({ length: 10 }, (_, i) => i);
+		const out = await mapWithConcurrencyLimit(items, 4, async (x) => {
+			await new Promise((r) => setTimeout(r, 1));
+			return x * 2;
+		});
+		expect(out).toEqual(items.map((x) => x * 2));
+	});
+	test("3 items, concurrency 10: all results, in input order", async () => {
+		const items = ["a", "b", "c"];
+		const out = await mapWithConcurrencyLimit(items, 10, async (x) => x);
+		expect(out).toEqual(["a", "b", "c"]);
+	});
+	test("concurrency cap is respected: peak in-flight never exceeds the limit", async () => {
+		let inFlight = 0;
+		let peak = 0;
+		const items = Array.from({ length: 12 }, (_, i) => i);
+		const out = await mapWithConcurrencyLimit(items, 3, async (x) => {
+			inFlight++;
+			if (inFlight > peak) peak = inFlight;
+			await new Promise((r) => setTimeout(r, 5));
+			inFlight--;
+			return x;
+		});
+		expect(out).toHaveLength(12);
+		expect(peak).toBeLessThanOrEqual(3);
+		expect(peak).toBeGreaterThan(1); // sanity: concurrency actually happened
+	});
+});
+
+describe("parseSubagentLine", () => {
+	test("empty line returns false (no throw)", () => {
+		const r = emptyResult();
+		expect(parseSubagentLine("", r)).toBe(false);
+		expect(r.messages).toHaveLength(0);
+	});
+	test("non-JSON line returns false (no throw)", () => {
+		const r = emptyResult();
+		expect(parseSubagentLine("not json", r)).toBe(false);
+		expect(r.messages).toHaveLength(0);
+	});
+	test("event with non-message_end type returns false", () => {
+		const r = emptyResult();
+		expect(parseSubagentLine('{"type":"other"}', r)).toBe(false);
+		expect(r.messages).toHaveLength(0);
+	});
+	test("assistant message_end pushes a message and increments turns", () => {
+		const r = emptyResult();
+		const line = JSON.stringify({
+			type: "message_end",
+			message: {
+				role: "assistant",
+				content: [{ type: "text", text: "hi" }],
+			},
+		});
+		expect(parseSubagentLine(line, r)).toBe(true);
+		expect(r.messages).toHaveLength(1);
+		expect(r.usage.turns).toBe(1);
+	});
+	test("cost as number: result.usage.cost increases by that amount", () => {
+		const r = emptyResult();
+		const line = JSON.stringify({
+			type: "message_end",
+			message: {
+				role: "assistant",
+				content: [{ type: "text", text: "x" }],
+				usage: { cost: 0.005 },
+			},
+		});
+		parseSubagentLine(line, r);
+		expect(r.usage.cost).toBeCloseTo(0.005, 6);
+	});
+	test("cost as object { total: N }: result.usage.cost increases by N", () => {
+		const r = emptyResult();
+		const line = JSON.stringify({
+			type: "message_end",
+			message: {
+				role: "assistant",
+				content: [{ type: "text", text: "x" }],
+				usage: { cost: { total: 0.007 } },
+			},
+		});
+		parseSubagentLine(line, r);
+		expect(r.usage.cost).toBeCloseTo(0.007, 6);
+	});
+	test("totalTokens: result.usage.contextTokens is set", () => {
+		const r = emptyResult();
+		const line = JSON.stringify({
+			type: "message_end",
+			message: {
+				role: "assistant",
+				content: [{ type: "text", text: "x" }],
+				usage: { totalTokens: 1234 },
+			},
+		});
+		parseSubagentLine(line, r);
+		expect(r.usage.contextTokens).toBe(1234);
+	});
+});
+
+describe("resultOutput", () => {
+	test("failed result: prefers errorMessage, then stderr, then final output", () => {
+		const r = emptyResult();
+		r.exitCode = 1;
+		r.errorMessage = "boom";
+		r.stderr = "should not see this";
+		r.messages = [{ role: "assistant", content: [{ type: "text", text: "fallback" }] }];
+		expect(resultOutput(r)).toBe("boom");
+	});
+	test("failed result with no errorMessage: uses stderr", () => {
+		const r = emptyResult();
+		r.exitCode = 1;
+		r.stderr = "stderr text";
+		expect(resultOutput(r)).toBe("stderr text");
+	});
+	test("failed result with no errorMessage/stderr: uses final output", () => {
+		const r = emptyResult();
+		r.exitCode = 1;
+		r.messages = [{ role: "assistant", content: [{ type: "text", text: "from-messages" }] }];
+		expect(resultOutput(r)).toBe("from-messages");
+	});
+	test("failed result with nothing: returns '(no output)'", () => {
+		const r = emptyResult();
+		r.exitCode = 1;
+		expect(resultOutput(r)).toBe("(no output)");
+	});
+	test("successful result: returns final assistant text", () => {
+		const r = emptyResult();
+		r.exitCode = 0;
+		r.messages = [{ role: "assistant", content: [{ type: "text", text: "done" }] }];
+		expect(resultOutput(r)).toBe("done");
+	});
+	test("successful result with no messages: returns '(no output)'", () => {
+		const r = emptyResult();
+		expect(resultOutput(r)).toBe("(no output)");
+	});
+});
