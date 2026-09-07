@@ -344,15 +344,16 @@ main() {
         usage >&2
         exit 2
       fi
-      local doc_life="${2:-}"
-      if [[ -n "${doc_life}" ]]; then
+      local doc_arg="${2:-}"
+      local doc_life=""
+      if [[ -n "${doc_arg}" ]]; then
         local doc_status=0
-        doc_life="$(canonical_life "${doc_life}")" || doc_status=$?
+        doc_life="$(canonical_life "${doc_arg}")" || doc_status=$?
         if [[ "${doc_status}" -eq 2 ]]; then
           exit 2
         fi
         if [[ "${doc_status}" -ne 0 ]]; then
-          printf 'pi-life: unknown life %s\n' "${doc_life}" >&2
+          printf 'pi-life: unknown life %s\n' "${doc_arg}" >&2
           usage >&2
           exit 2
         fi
@@ -383,13 +384,18 @@ main() {
           exit 2
         fi
         local kind name
+        local profile_out profile_rc=0
+        profile_out="$(read_profile "${doc_profile}" "${root}")" || profile_rc=$?
+        if [[ "${profile_rc}" -ne 0 ]]; then
+          exit 2
+        fi
         while IFS=$'\t' read -r kind name; do
           [[ "${kind}" == "pack" ]] || continue
           if [[ ! -e "${skills_home}/${name}" ]]; then
             printf 'warning: missing pack %s (%s)\n' "${name}" "${skills_home}/${name}"
             optional=$((optional + 1))
           fi
-        done < <(read_profile "${doc_profile}" "${root}")
+        done <<< "${profile_out}"
       fi
 
       if ! command -v just >/dev/null 2>&1; then
@@ -398,14 +404,6 @@ main() {
       fi
       if ! command -v rs-guard >/dev/null 2>&1; then
         printf 'warning: rs-guard not on PATH\n'
-        optional=$((optional + 1))
-      fi
-      if ! command -v obscura >/dev/null 2>&1; then
-        printf 'warning: obscura not on PATH (browser capability)\n'
-        optional=$((optional + 1))
-      fi
-      if ! command -v playwright >/dev/null 2>&1; then
-        printf 'warning: playwright not on PATH (browser capability)\n'
         optional=$((optional + 1))
       fi
       local ex_rc=0

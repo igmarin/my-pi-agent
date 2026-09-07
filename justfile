@@ -178,7 +178,16 @@ smoke:
     out="$(cd "${doc_bad}" && PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
     test "${status}" -eq 2
     [[ "${out}" == *"invalid overlay YAML"* ]]
-    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_bad}"
+    # (l) doctor <life> with a malformed profile -> exit 2 (not swallowed).
+    doc_badprof_home="$(mktemp -d)"
+    mkdir -p "${doc_badprof_home}/profiles"
+    printf '%s\n' 'life: ruby' 'packs: {bad: true}' >"${doc_badprof_home}/profiles/ruby.yaml"
+    doc_badprof_cwd="$(mktemp -d)"
+    status=0
+    out="$(cd "${doc_badprof_cwd}" && MY_PI_AGENT_HOME="${doc_badprof_home}" PI_SKILLS_HOME="${tmp}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 2
+    grep -q 'must be a string or list of strings' <<<"${out}"
+    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_bad}" "${doc_badprof_home}" "${doc_badprof_cwd}"
     status=0
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
