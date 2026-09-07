@@ -1,6 +1,5 @@
 # ruby life (Rails). Packs are allowlists under ~/.agents/skills; not vendored here.
 life: ruby
-provider_class: personal
 tracker: github-issue
 packs:
   - agnostic-planning-skills
@@ -14,6 +13,3 @@ mantra:
   - clarify
   - requirements-clarifier
   - tdd
-models:
-  planner_thinking: xhigh
-  builder_thinking: low

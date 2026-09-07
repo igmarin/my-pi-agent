@@ -33,7 +33,7 @@ Provider: DeepSeek (`DEEPSEEK_API_KEY`). Prefer `deepseek-v4-flash` for local re
 
 ## Not shipped — do not implement or review as if present
 
-Overlay merge (#11), doctor (#13), chain (#6), team (#8), boot TUI / model policy (#15). `provider_class` and `models` in profiles are placeholders until #15.
+Overlay merge (#11), doctor (#13), chain (#6), team (#8), boot TUI / model policy (#15).
 
 ## Docs
 

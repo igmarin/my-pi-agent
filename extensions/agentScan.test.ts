@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expandArgs } from "./cross-agent.ts";
+import { expandArgs } from "./argExpand.ts";
 import { canonicalLife, collectAgents, discover } from "./agentScan.ts";
 
 const tmp = join(tmpdir(), `mpa-scan-${process.pid}`);

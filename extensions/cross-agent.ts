@@ -10,14 +10,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { applyExtensionDefaults } from "./themeMap.ts";
 import { discover } from "./agentScan.ts";
-
-export function expandArgs(template: string, args: string): string {
-	const parts = args.split(/\s+/).filter(Boolean);
-	return template.replace(/\$(ARGUMENTS|@|\d+)/g, (m, key: string) => {
-		if (key === "ARGUMENTS" || key === "@") return args;
-		return parts[Number(key) - 1] ?? "";
-	});
-}
+import { expandArgs } from "./argExpand.ts";
 
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
