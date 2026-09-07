@@ -27,7 +27,7 @@ YAML under `profiles/<life>/agents/` or shared `profiles/agents/`, then cwd `.pi
 _Avoid_: flattening pack playbooks into these files
 
 **Project overlay**:
-File in the target repo (`.pi/capabilities.yaml`) that turns capabilities on or off.
+File in the target repo (`.pi/capabilities.yaml`) that turns capabilities on or off. Default all off; missing file ≡ all off. `bin/pi-life` parses the overlay (strict, fail closed on bad YAML) and exports the result as `PI_OVERLAY` for `extensions/capabilities.ts`, which appends a `<capabilities>` block to the system prompt at `before_agent_start` when anything is on. When all are off, the prompt is left alone — the model never sees a capability the project has not enabled. The overlay's `extra_skills` and `tracker.skill` are also turned into `--skill` arguments in the launcher so the model can actually use them, not just see them in the prompt. `bin/pi-life` resolves the script's real location via `BASH_SOURCE[0]` for the import, independent of any `MY_PI_AGENT_HOME` override.
 _Avoid_: settings, config (too broad)
 
 **Machine**:
@@ -43,7 +43,7 @@ Always-on skill overlay for every life: `i-have-adhd`, `ponytail`, `deslop`, `cl
 _Avoid_: system prompt (the prompt is how mantra is injected)
 
 **Capability**:
-Optional tool a project may enable (graphify, codegraph, serena, rs-guard, obscura, playwright). Default off.
+Optional tool a project may enable in its overlay (graphify, codegraph, serena, rs-guard, obscura, playwright). Default off. The overlay's `extra_skills` and `tracker.skill` are also capabilities: paths to local skill directories and to a machine-local tracker skill, respectively. The overlay may not invent a fourth life.
 _Avoid_: plugin, MCP (MCP is one way to expose a capability)
 
 **Chain**:

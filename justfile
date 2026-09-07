@@ -41,10 +41,11 @@ smoke:
     python_out="$("${bin}" --dry-run python 2>"${tmp}/python.err")"
 
     case "${rust_out}" in
-      pi\ -e\ *damage-control-continue.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
-      *) echo "INV-skills: rust argv must include -e damage-control-continue -e clarify-gate.ts --no-skills: ${rust_out}" >&2; exit 1 ;;
+      pi\ -e\ *damage-control-continue.ts\ *capabilities.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
+      *) echo "INV-skills: rust argv must include -e damage-control-continue -e capabilities.ts -e clarify-gate.ts --no-skills: ${rust_out}" >&2; exit 1 ;;
     esac
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/damage-control-continue.ts"
+    echo "${rust_out}" | grep -q -- "-e ${root}/extensions/capabilities.ts"
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/clarify-gate.ts"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/ponytail"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/github-issue"
@@ -158,11 +159,88 @@ smoke:
     status=0
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
+    # Issue #11: capabilities overlay. Smoke calls `bin/pi-life --dump-overlay`
+    # to exercise the real read_overlay function, not a copy of it.
+    # (a) Missing overlay -> all-off payload.
+    nooverlay="$(mktemp -d)"
+    nooverlay_payload="$("${bin}" --dump-overlay "${nooverlay}")"
+    case "${nooverlay_payload}" in
+      *'"graphify":false'*'"codegraph":false'*'"serena":false'*'"rs-guard":false'*'"obscura":false'*'"playwright":false'*) ;;
+      *) echo "expected all-off overlay, got: ${nooverlay_payload}" >&2; exit 1 ;;
+    esac
+    # (b) Overlay on -> reflects the on capabilities.
+    mkdir -p "${nooverlay}/.pi"
+    printf '%s\n' 'graphify: true' 'codegraph: true' >"${nooverlay}/.pi/capabilities.yaml"
+    on_payload="$("${bin}" --dump-overlay "${nooverlay}")"
+    case "${on_payload}" in
+      *'"graphify":true'*'"codegraph":true'*) ;;
+      *) echo "expected graphify+codegraph on, got: ${on_payload}" >&2; exit 1 ;;
+    esac
+    # (c) Malformed overlay YAML -> exit 2 (fail closed).
+    printf ':\n  [\n' >"${nooverlay}/.pi/capabilities.yaml"
+    status=0
+    "${bin}" --dump-overlay "${nooverlay}" >/dev/null 2>"${tmp}/badoverlay.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'invalid overlay YAML' "${tmp}/badoverlay.err"
+    # (d) Schema error (unknown top-level key) -> exit 2.
+    printf '%s\n' 'graphify: true' 'kittens: true' >"${nooverlay}/.pi/capabilities.yaml"
+    status=0
+    "${bin}" --dump-overlay "${nooverlay}" >/dev/null 2>"${tmp}/badkey.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'unknown key.*kittens' "${tmp}/badkey.err"
+    # (e) Schema error (unknown tracker key) -> exit 2.
+    printf '%s\n' 'tracker:' '  skill: local/x' '  retries: 3' >"${nooverlay}/.pi/capabilities.yaml"
+    status=0
+    "${bin}" --dump-overlay "${nooverlay}" >/dev/null 2>"${tmp}/badtracker.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'tracker has unknown key.*retries' "${tmp}/badtracker.err"
+    # (f) Overlay extra_skills and tracker.skill become --skill args.
+    # We need a valid profile + valid skills home for launch_life to run,
+    # so this is a separate test scaffold.
+    overlay_life="$(mktemp -d)"
+    overlay_profile="$(mktemp -d)"
+    overlay_skill1="${overlay_life}/.pi/local-skills/team-rule"
+    overlay_skill2="${overlay_life}/.pi/local-tracker/work"
+    mkdir -p "${overlay_skill1}" "${overlay_skill2}"
+    mkdir -p "${overlay_profile}/profiles"
+    printf '%s\n' 'life: python' 'tracker: github-issue' 'packs: []' 'mantra: [i-have-adhd]' >"${overlay_profile}/profiles/python.yaml"
+    mkdir -p "${tmp}/overlay-skills-home/i-have-adhd" "${tmp}/overlay-skills-home/github-issue"
+    printf '%s\n' '# i-have-adhd' '# github-issue' >"${tmp}/overlay-skills-home/i-have-adhd/SKILL.md" "${tmp}/overlay-skills-home/github-issue/SKILL.md"
+    printf '%s\n' >"${overlay_skill1}/SKILL.md"
+    printf '%s\n' >"${overlay_skill2}/SKILL.md"
+    printf '%s\n' 'graphify: true' 'extra_skills:' "  - ${overlay_skill1}" 'tracker:' "  skill: ${overlay_skill2}" >"${overlay_life}/.pi/capabilities.yaml"
+    overlay_out="$(cd "${overlay_life}" && MY_PI_AGENT_HOME="${overlay_profile}" PI_SKILLS_HOME="${tmp}/overlay-skills-home" "${bin}" --dry-run python 2>"${tmp}/overlay.err")"
+    case "${overlay_out}" in
+      *"--skill ${overlay_skill1}"*) ;;
+      *) echo "expected --skill ${overlay_skill1} in argv, got: ${overlay_out}" >&2; exit 1 ;;
+    esac
+    case "${overlay_out}" in
+      *"--skill ${overlay_skill2}"*) ;;
+      *) echo "expected --skill ${overlay_skill2} in argv, got: ${overlay_out}" >&2; exit 1 ;;
+    esac
+    # (g) --dump-overlay . from a relative path works (cwd is normalized).
+    dumprel="$(mktemp -d)"
+    mkdir -p "${dumprel}/.pi"
+    printf 'graphify: true\n' >"${dumprel}/.pi/capabilities.yaml"
+    dumprel_payload="$(cd "${dumprel}" && "${bin}" --dump-overlay .)"
+    case "${dumprel_payload}" in
+      *'"graphify":true'*) ;;
+      *) echo "expected graphify on for --dump-overlay ., got: ${dumprel_payload}" >&2; exit 1 ;;
+    esac
+    # (h) Missing overlay skill path produces a warning, not a fail.
+    printf '%s\n' 'graphify: true' 'extra_skills:' '  - /no/such/skill' >"${dumprel}/.pi/capabilities.yaml"
+    warn_out="$(cd "${dumprel}" && MY_PI_AGENT_HOME="${overlay_profile}" PI_SKILLS_HOME="${tmp}/overlay-skills-home" "${bin}" --dry-run python 2>&1)"
+    case "${warn_out}" in
+      *"missing overlay overlay (/no/such/skill)"*) ;;
+      *) echo "expected missing-overlay warning, got: ${warn_out}" >&2; exit 1 ;;
+    esac
+    rm -rf "${nooverlay}" "${overlay_life}" "${overlay_profile}" "${dumprel}"
     echo "smoke ok"
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/subagent.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/subagent.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
+      "{{root}}/extensions/capabilities.ts" \
       "{{root}}/extensions/clarify-gate.ts" \
       "{{root}}/extensions/status-line.ts" \
       "{{root}}/extensions/subagent.ts" "{{root}}/extensions/subagentHelpers.ts" \
