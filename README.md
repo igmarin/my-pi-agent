@@ -24,11 +24,18 @@ Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` a
 
 ### First launch (boot config)
 
-On the first `pi-life` launch in a target repo — when `.pi/capabilities.yaml` does not exist — a wizard walks you through the six capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright) and optional per-role model/thinking defaults, then writes the overlay only if you confirm. Existing file → the wizard is skipped. Later launches pass the overlay's solo `models`/`thinking` into `pi --model/--thinking`; `profiles/<life>.yaml` may carry optional `models:`/`thinking:` defaults that the overlay overrides. See CONTEXT.md (**Boot Config**, **Role**).
+When a target repo has no `.pi/capabilities.yaml`, the first `pi-life` launch runs a wizard:
+
+- Walks the six capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright).
+- Optionally sets per-role model and thinking defaults (solo, planner, builder, reviewer, researcher).
+- Writes the overlay only after you confirm; a cancelled prompt skips that step.
+- Skips entirely when the overlay already exists or no UI is available.
+
+Later launches pass the overlay's solo `models`/`thinking` into `pi --model/--thinking`; `profiles/<life>.yaml` may carry optional `models:`/`thinking:` defaults that the overlay overrides. See CONTEXT.md (**Boot Config**, **Role**).
 
 ### Rails-repo smoke
 
-`just smoke` ends with `just smoke-rails`: it runs `pi-life --dry-run ruby` from a Rails repo and asserts the ruby pack argv. Pass a repo explicitly (`just smoke-rails ~/path/to/app` — a path without a `Gemfile` fails loudly with exit 1); without an argument it auto-discovers a `Gemfile` containing `gem "rails"` under `~/Developer` and, when nothing is found, falls back to a synthetic Rails fixture — so the default run is never a manual step and never a hard fail.
+`just smoke` ends with `just smoke-rails fixture`: it runs `pi-life --dry-run ruby` from a synthetic Rails repo and asserts the ruby pack argv — deterministic by default. `just smoke-rails` manually prefers a real repo discovered under `~/Developer` (`Gemfile` containing `gem "rails"`); `just smoke-rails ~/path/to/app` uses that repo and fails loudly (exit 1) if it has no `Gemfile`.
 
 ```text
 just install

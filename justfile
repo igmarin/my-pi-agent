@@ -533,25 +533,28 @@ smoke:
       if (expansionOperandRisk("git mv a b")) { console.error("git mv flagged"); process.exit(1); }
       console.log("damage-control unit checks ok");
     '
-    # Issue #14: smoke also runs from a Rails repo (real if discoverable,
-    # synthetic fixture otherwise — never a manual step, never a hard fail).
-    just smoke-rails
+    # Issue #14: smoke also runs from a Rails repo — the synthetic fixture, so
+    # the default run is deterministic (a discovered repo's own overlay could
+    # inject argv). `just smoke-rails` manually prefers a real repo.
+    just smoke-rails fixture
 
-# Issue #14: run pi-life ruby from a Rails repo. Optional repo path arg;
-# without one: auto-discover under ~/Developer, else use a temp fixture.
-smoke-rails repo='':
+# Issue #14: run pi-life ruby from a Rails repo. repo is a path (must contain
+# a Gemfile), "discover" (auto-detect under ~/Developer, default), or
+# "fixture" (temp synthetic Rails repo — what `just smoke` uses).
+smoke-rails repo='discover':
     #!/usr/bin/env bash
     set -euo pipefail
     root="{{justfile_directory()}}"
     bin="${root}/bin/pi-life"
     repo="{{repo}}"
-    if [[ -n "${repo}" && ( ! -d "${repo}" || ! -f "${repo}/Gemfile" ) ]]; then
-      echo "smoke-rails: not a Rails repo (no Gemfile): ${repo}" >&2
-      exit 1
-    fi
-    if [[ -z "${repo}" ]]; then
+    if [[ "${repo}" == "discover" ]]; then
       repo="$(find "${HOME}/Developer" -maxdepth 4 -name Gemfile -not -path '*/node_modules/*' \
         -exec grep -lE '^gem .rails.' {} + 2>/dev/null | head -1 | xargs -I{} dirname {} 2>/dev/null || true)"
+    elif [[ "${repo}" == "fixture" ]]; then
+      repo=""
+    elif [[ -n "${repo}" && ( ! -d "${repo}" || ! -f "${repo}/Gemfile" ) ]]; then
+      echo "smoke-rails: not a Rails repo (no Gemfile): ${repo}" >&2
+      exit 1
     fi
     fixture=""
     if [[ -z "${repo}" ]]; then
