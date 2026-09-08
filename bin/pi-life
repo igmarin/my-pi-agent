@@ -269,6 +269,12 @@ launch_life() {
   if [[ "${mode}" == "solo" ]]; then
     pi_args+=(-e "${root}/extensions/status-line.ts")
   fi
+  # Issue #8: team mode = dispatcher-only primary. Mutually exclusive with
+  # chain (agent-chain.ts) and tilldone (status-line.ts) by construction: this
+  # launcher never loads those in team mode, so setActiveTools cannot conflict.
+  if [[ "${mode}" == "team" ]]; then
+    pi_args+=(-e "${root}/extensions/agent-team.ts")
+  fi
 
   local rows
   rows="$(read_profile "${profile}" "${root}")" || exit 2
@@ -399,14 +405,26 @@ main() {
         if [[ "${profile_rc}" -ne 0 ]]; then
           exit 2
         fi
-        # read_profile prints "kind\tname" rows for mantra/pack/tracker. Only
-        # packs are doctor-relevant; any other kind is intentionally ignored.
+        # read_profile prints "kind\tname" rows for mantra/pack/tracker.
+        # Mantra/tracker paths are launch-required (fail closed, exit 2 —
+        # same message add_named_skill prints), so doctor prefights them;
+        # packs only warn.
         while IFS=$'\t' read -r kind name; do
-          [[ "${kind}" == "pack" ]] || continue
-          if [[ ! -e "${skills_home}/${name}" ]]; then
-            doctor_warn "missing pack ${name} (${skills_home}/${name})"
-            optional=$((optional + 1))
-          fi
+          [[ -z "${kind}" ]] && continue
+          case "${kind}" in
+            mantra|tracker)
+              if [[ ! -e "${skills_home}/${name}" ]]; then
+                printf 'pi-life: missing required %s %s (%s)\n' "${kind}" "${name}" "${skills_home}/${name}" >&2
+                exit 2
+              fi
+              ;;
+            pack)
+              if [[ ! -e "${skills_home}/${name}" ]]; then
+                doctor_warn "missing pack ${name} (${skills_home}/${name})"
+                optional=$((optional + 1))
+              fi
+              ;;
+          esac
         done <<< "${profile_out}"
       fi
 
@@ -416,6 +434,13 @@ main() {
       fi
       if ! command -v rs-guard >/dev/null 2>&1; then
         doctor_warn "rs-guard not on PATH"
+        optional=$((optional + 1))
+      fi
+      # Issue #19: herdr is the daily host for parallel pi-life sessions.
+      # Optional: the harness works without it; the herdr skill no-ops when
+      # HERDR_ENV is unset, so a plain terminal is unaffected.
+      if ! command -v herdr >/dev/null 2>&1; then
+        doctor_warn "herdr not on PATH"
         optional=$((optional + 1))
       fi
       local ex_rc=0
@@ -475,8 +500,9 @@ main() {
   local mode="${2:-solo}"
   case "${mode}" in
     solo) ;;
-    chain|team)
-      printf 'pi-life: %s is accepted but not wired yet (#6/#8); using solo skill allowlist\n' "${mode}" >&2
+    team) ;;
+    chain)
+      printf 'pi-life: chain is accepted but not wired yet; using solo skill allowlist (load extensions/agent-chain.ts manually for /chain)\n' >&2
       ;;
     *)
       printf 'pi-life: unknown mode %s\n' "${mode}" >&2

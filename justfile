@@ -24,7 +24,7 @@ smoke:
     "$bin" --help >/dev/null
     tmp="$(mktemp -d)"
     trap 'rm -rf "${tmp}"' EXIT
-    for name in i-have-adhd ponytail ponytail-review deslop clarify requirements-clarifier tdd \
+    for name in i-have-adhd ponytail ponytail-review deslop clarify requirements-clarifier tdd herdr \
                 github-issue agnostic-planning-skills ruby-core-skills rails-agent-skills elixir-phoenix-skills; do
       mkdir -p "${tmp}/${name}"
       printf '%s\n' "# ${name}" >"${tmp}/${name}/SKILL.md"
@@ -48,6 +48,7 @@ smoke:
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/capabilities.ts"
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/clarify-gate.ts"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/ponytail"
+    echo "${rust_out}" | grep -q -- "--skill ${tmp}/herdr"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/github-issue"
     ! grep -q -- "elixir-phoenix-skills" <<<"${rust_out}"
     ! grep -q -- "rails-agent-skills" <<<"${rust_out}"
@@ -57,6 +58,9 @@ smoke:
     echo "${rust_solo_out}" | grep -q -- "-e ${root}/extensions/status-line.ts"
     ! grep -q -- "status-line.ts" <<<"${rust_chain_out}"
     ! grep -q -- "status-line.ts" <<<"${rust_team_out}"
+    # Issue #8: team mode loads the dispatcher-only primary.
+    echo "${rust_team_out}" | grep -q -- "-e ${root}/extensions/agent-team.ts"
+    ! grep -q -- "agent-team.ts" <<<"${rust_solo_out}"
 
     echo "${elixir_out}" | grep -q -- "--skill ${tmp}/elixir-phoenix-skills"
     ! grep -q -- "github-issue" <<<"${elixir_out}"
@@ -70,6 +74,7 @@ smoke:
 
     echo "${python_out}" | grep -q -- "--no-skills"
     echo "${python_out}" | grep -q -- "--skill ${tmp}/ponytail"
+    echo "${python_out}" | grep -q -- "--skill ${tmp}/herdr"
     ! grep -q -- "rails-agent-skills" <<<"${python_out}"
     echo "${python_out}" | grep -q -- "--skill ${tmp}/github-issue"
 
@@ -95,7 +100,7 @@ smoke:
     rm -rf "${empty}"
 
     notrack="$(mktemp -d)"
-    for name in i-have-adhd ponytail ponytail-review deslop clarify requirements-clarifier tdd; do
+    for name in i-have-adhd ponytail ponytail-review deslop clarify requirements-clarifier tdd herdr; do
       mkdir -p "${notrack}/${name}"
       printf '%s\n' "# ${name}" >"${notrack}/${name}/SKILL.md"
     done
@@ -166,15 +171,28 @@ smoke:
     grep -q 'required: ok' <<<"${out}"
     grep -q 'optional:' <<<"${out}"
     # (j) doctor <life> with packs missing -> exit 0, warnings named. Uses a
-    # DEDICATED EMPTY skills home (not ${tmp}, which stubs every ruby pack) so
-    # the missing-pack warning genuinely fires.
+    # DEDICATED skills home that has every required mantra/tracker stubbed
+    # (copied from ${tmp}) but no ruby packs, so the missing-pack warning
+    # genuinely fires and nothing else fails.
     doc_life_cwd="$(mktemp -d)"
     doc_packs_home="$(mktemp -d)"
+    for name in i-have-adhd ponytail ponytail-review deslop clarify requirements-clarifier tdd herdr github-issue; do
+      cp -r "${tmp}/${name}" "${doc_packs_home}/${name}"
+    done
     status=0
     out="$(cd "${doc_life_cwd}" && PI_SKILLS_HOME="${doc_packs_home}" "${bin}" doctor ruby 2>&1)" || status=$?
     test "${status}" -eq 0
     grep -q 'life: ruby' <<<"${out}"
     grep -q 'warning: missing pack ruby-core-skills' <<<"${out}"
+    # (j2) doctor <life> with a missing required mantra path -> exit 2, same
+    # message the launcher prints (doctor is a launch preflight).
+    doc_nomantra_home="$(mktemp -d)"
+    mkdir -p "${doc_nomantra_home}/github-issue"
+    printf '%s\n' '# github-issue' >"${doc_nomantra_home}/github-issue/SKILL.md"
+    status=0
+    out="$(cd "${doc_life_cwd}" && PI_SKILLS_HOME="${doc_nomantra_home}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 2
+    grep -q 'missing required mantra' <<<"${out}"
     # (k) doctor with overlay parse failure -> exit 2.
     doc_bad="$(mktemp -d)"
     mkdir -p "${doc_bad}/.pi"
@@ -183,6 +201,34 @@ smoke:
     out="$(cd "${doc_bad}" && PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
     test "${status}" -eq 2
     grep -q 'invalid overlay YAML' <<<"${out}"
+    # (j3) doctor <life> with a missing required tracker path -> exit 2.
+    doc_notrk_home="$(mktemp -d)"
+    for name in i-have-adhd ponytail ponytail-review deslop clarify requirements-clarifier tdd herdr; do
+      cp -r "${tmp}/${name}" "${doc_notrk_home}/${name}"
+    done
+    status=0
+    out="$(cd "${doc_life_cwd}" && PI_SKILLS_HOME="${doc_notrk_home}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 2
+    grep -q 'missing required tracker' <<<"${out}"
+    # (j4) tracker: none and omitted tracker never preflight-fail: read_profile
+    # emits no tracker row for either, so doctor stays exit 0. Pins the
+    # sentinel contract against regressions in the doctor loop.
+    doc_none_home="$(mktemp -d)"
+    mkdir -p "${doc_none_home}/profiles" "${doc_none_home}/i-have-adhd"
+    printf '%s\n' '# i-have-adhd' >"${doc_none_home}/i-have-adhd/SKILL.md"
+    printf '%s\n' 'life: ruby' 'tracker: none' 'packs: []' 'mantra: [i-have-adhd]' >"${doc_none_home}/profiles/ruby.yaml"
+    status=0
+    out="$(cd "${doc_life_cwd}" && MY_PI_AGENT_HOME="${doc_none_home}" PI_SKILLS_HOME="${doc_none_home}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 0
+    grep -q 'required: ok' <<<"${out}"
+    doc_omit_home="$(mktemp -d)"
+    mkdir -p "${doc_omit_home}/profiles" "${doc_omit_home}/i-have-adhd"
+    printf '%s\n' '# i-have-adhd' >"${doc_omit_home}/i-have-adhd/SKILL.md"
+    printf '%s\n' 'life: ruby' 'packs: []' 'mantra: [i-have-adhd]' >"${doc_omit_home}/profiles/ruby.yaml"
+    status=0
+    out="$(cd "${doc_life_cwd}" && MY_PI_AGENT_HOME="${doc_omit_home}" PI_SKILLS_HOME="${doc_omit_home}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 0
+    grep -q 'required: ok' <<<"${out}"
     # (l) doctor <life> with a malformed profile -> exit 2 (not swallowed).
     doc_badprof_home="$(mktemp -d)"
     mkdir -p "${doc_badprof_home}/profiles"
@@ -205,7 +251,20 @@ smoke:
     out="$(cd "${doc_nobun_cwd}" && PATH="${doc_nobun_home}/bin:/bin:/usr/bin" MY_PI_AGENT_HOME="${doc_badprof_home}" PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
     test "${status}" -eq 2
     grep -q 'required: FAIL missing: bun' <<<"${out}"
-    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_packs_home}" "${doc_bad}" "${doc_badprof_home}" "${doc_badprof_cwd}" "${doc_nobun_home}" "${doc_nobun_cwd}"
+    # (m2) Issue #19: with required pieces satisfied but herdr off PATH,
+    # doctor still exits 0 and warns (optional gap, never a failure).
+    doc_nohome="$(mktemp -d)"
+    mkdir -p "${doc_nohome}/bin"
+    printf '%s\n' '#!/bin/bash' 'exit 0' >"${doc_nohome}/bin/pi"
+    printf '%s\n' '#!/bin/bash' 'exit 0' >"${doc_nohome}/bin/bun"
+    chmod +x "${doc_nohome}/bin/pi" "${doc_nohome}/bin/bun"
+    doc_noh_cwd="$(mktemp -d)"
+    status=0
+    out="$(cd "${doc_noh_cwd}" && PATH="${doc_nohome}/bin:/bin:/usr/bin" PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
+    test "${status}" -eq 0
+    grep -q 'warning: herdr not on PATH' <<<"${out}"
+    grep -q 'optional:' <<<"${out}"
+    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_packs_home}" "${doc_nomantra_home}" "${doc_notrk_home}" "${doc_none_home}" "${doc_omit_home}" "${doc_bad}" "${doc_badprof_home}" "${doc_badprof_cwd}" "${doc_nobun_home}" "${doc_nobun_cwd}" "${doc_nohome}" "${doc_noh_cwd}"
     status=0
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
@@ -325,7 +384,7 @@ smoke:
            "${notrack_overlay_life}" "${notrack_overlay_profile}"
     # Issue #6: agent-chain. (a) shared harness default parses and resolves.
     MY_PI_AGENT_HOME="{{root}}" bun -e '
-      import { resolveChainFile, parseChainFile, renderStepTask } from "{{root}}/extensions/agent-chain.ts";
+      import { resolveChainFile, parseChainFile, parseAgentTeams, pickTeam, renderStepTask } from "{{root}}/extensions/agent-chain.ts";
       const file = resolveChainFile(process.cwd(), import.meta.url, undefined);
       if (!file) { console.error("agent-chain: no default chain file resolved"); process.exit(1); }
       const chains = parseChainFile(await Bun.file(file.path).text());
@@ -337,6 +396,15 @@ smoke:
       if (renderStepTask("A {task} {previous}", "T", "") !== "A T ") {
         console.error("agent-chain: renderStepTask"); process.exit(1);
       }
+      const teams = parseAgentTeams(await Bun.file(file.path).text());
+      const dflt = pickTeam(teams);
+      if (dflt.members.join(",") !== "planner,builder,reviewer,researcher") {
+        console.error("agent-team: default team members wrong", dflt); process.exit(1);
+      }
+      const rchain = parseChainFile(await Bun.file(file.path).text()).get("research-plan-build-review");
+      if (!rchain || rchain.steps.map((s) => s.agent).join(",") !== "researcher,planner,builder,reviewer") {
+        console.error("agent-chain: research-plan-build-review missing or wrong", rchain); process.exit(1);
+      }
       console.log("agent-chain default chain ok");
     '
     echo "smoke ok"
@@ -347,6 +415,7 @@ smoke:
       "{{root}}/extensions/capabilities.ts" \
       "{{root}}/extensions/clarify-gate.ts" \
       "{{root}}/extensions/agent-chain.ts" \
+      "{{root}}/extensions/agent-team.ts" \
       "{{root}}/extensions/status-line.ts" \
       "{{root}}/extensions/subagent.ts" "{{root}}/extensions/subagentHelpers.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external

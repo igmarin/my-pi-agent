@@ -1,7 +1,13 @@
-# Shared default agent chains. Lives may override with
+# Shared default agent chains and teams. Lives may override with
 # profiles/<life>/agents/agent-chain.yaml; a project overrides both with
 # .pi/agents/agent-chain.yaml. {task} = the original request; {previous} = the
-# prior step's final output ("" for the first step).
+# prior step's final output ("" for the first step). Teams (issue #8) are
+# consumed by extensions/agent-team.ts, the dispatcher-only primary launched
+# by `pi-life <life> team`; chain and team modes are mutually exclusive.
+teams:
+  default:
+    description: Plan, build, review, and research via dispatched specialists.
+    members: [planner, builder, reviewer, researcher]
 chains:
   plan-build-review:
     description: Plan, then build, then review.
@@ -11,4 +17,22 @@ chains:
       - agent: builder
         task: "Implement the plan for: {task}\n\nPrior step output:\n{previous}\n\nWrite clean, minimal code following the codebase patterns. Test your work when possible."
       - agent: reviewer
+        # rs_guard: the chain shells out to rs-guard on `git diff HEAD` before
+        # this step when the overlay enables rs-guard; missing binary or a
+        # non-zero rs-guard exit fails the chain (issue #7, chain-level).
+        rs_guard: true
+        task: "Review the implementation for: {task}\n\nPrior step output:\n{previous}\n\nFind bugs, security issues, style problems, and improvements. Be concise, use bullet points, cite file:line. Do NOT modify files."
+  # Optional research-first variant (issue #12). Run explicitly:
+  # /chain research-plan-build-review <task>
+  research-plan-build-review:
+    description: Research, then plan, build, review.
+    steps:
+      - agent: researcher
+        task: "Research: {task}\n\nWrite the cited findings to docs/research/<topic-slug>.md (the only file you may write) and summarize them in your final message."
+      - agent: planner
+        task: "Plan the work for: {task}\n\nResearch findings:\n{previous}\n\nDo NOT modify files. Output a numbered step-by-step plan naming the files to change."
+      - agent: builder
+        task: "Implement the plan for: {task}\n\nPrior step output:\n{previous}\n\nWrite clean, minimal code following the codebase patterns. Test your work when possible."
+      - agent: reviewer
+        rs_guard: true
         task: "Review the implementation for: {task}\n\nPrior step output:\n{previous}\n\nFind bugs, security issues, style problems, and improvements. Be concise, use bullet points, cite file:line. Do NOT modify files."

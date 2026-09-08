@@ -19,7 +19,7 @@ Named launch config for a life: extensions, skill allowlist, tracker, provider c
 _Avoid_: theme, preset; TOML for harness config
 
 **Solo**:
-Default launch mode. The single primary Pi session with the full per-life toolset, the solo-only status-line extension, and the solo allowlist. The other modes (`chain`, `team`) do not load the status line and (until #6/#8 land) use the solo allowlist too.
+Default launch mode. The single primary Pi session with the full per-life toolset, the solo-only status-line extension, and the solo allowlist. The other modes do not load the status line. `team` keeps the solo allowlist plus the dispatcher extension; `chain` is accepted but not wired (solo allowlist, warning) — run `/chain` from a session that loads `agent-chain.ts`.
 _Avoid_: single, default (ambiguous; "solo" names the harness mode specifically)
 
 **Agent (persona)**:
@@ -39,11 +39,11 @@ This repo: extensions, profiles, `pi-life`, doctor. Host is Pi.
 _Avoid_: runtime, orchestrator, framework
 
 **Doctor**:
-`pi-life doctor [life]` health check (replaces the pre-#13 stub). Fail-closed (exit 2): `pi`, `bun`, overlay parse failure. Warns and exits 0: optional gaps (missing packs for the given `[life]`, `just`, `rs-guard`, `core.excludesfile` patterns). Prints the report keys `life`/`harness`/`cwd`/`overlay`/`required`/`optional`. Diagnostics (warnings, parse errors) go to stderr; the report goes to stdout.
+`pi-life doctor [life]` health check (replaces the pre-#13 stub). Fail-closed (exit 2): `pi`, `bun`, overlay parse failure, and — for the given `[life]` — a missing required mantra or tracker skill path (the same contract the launcher enforces; mantra skills are user-provisioned under `PI_SKILLS_HOME`/`~/.agents/skills`, never vendored). Warns and exits 0: optional gaps (missing packs for the given `[life]`, `just`, `rs-guard`, `herdr`, `core.excludesfile` patterns). Prints the report keys `life`/`harness`/`cwd`/`overlay`/`required`/`optional`. Diagnostics (warnings, parse errors) go to stderr; the report goes to stdout.
 _Avoid_: diagnostics on stdout (warnings are `warning: `-prefixed on stderr)
 
 **Mantra**:
-Always-on skill overlay for every life: `i-have-adhd`, `ponytail`, `deslop`, `clarify`, TDD gate, per-life constraint style. Backed by the clarify-gate extension, which blocks `write` and `edit` tool calls until the user runs `/clarify` to accept the prompt; read-only tools stay available. The gate is per-session: once opened, it stays open. Print/JSON mode skips the gate.
+Always-on skill overlay for every life: `i-have-adhd`, `ponytail`, `deslop`, `clarify`, TDD gate, per-life constraint style, `herdr` (no-ops outside Herdr). Backed by the clarify-gate extension, which blocks `write` and `edit` tool calls until the user runs `/clarify` to accept the prompt; read-only tools stay available. The gate is per-session: once opened, it stays open. Print/JSON mode skips the gate.
 _Avoid_: system prompt (the prompt is how mantra is injected)
 
 **Capability**:
@@ -51,7 +51,7 @@ Optional tool a project may enable in its overlay (graphify, codegraph, serena, 
 _Avoid_: plugin, MCP (MCP is one way to expose a capability)
 
 **Chain**:
-Sequential roles (`plan → build → review`) driven by named chains from `agent-chain.yaml` (`/chain`, `/chain-list`, `run_chain`). File precedence: project `.pi/agents/agent-chain.yaml` overrides harness `profiles/<life>/agents/` then shared `profiles/agents/agent-chain.yaml` (default `plan-build-review`). Each step is a child `pi` (`{task}`/`{previous}` templates, fail-fast). Mode `chain` still warns and uses the solo allowlist until wired (#8).
+Sequential roles (`plan → build → review`) driven by named chains from `agent-chain.yaml` (`/chain`, `/chain-list`, `run_chain`). File precedence: project `.pi/agents/agent-chain.yaml` overrides harness `profiles/<life>/agents/` then shared `profiles/agents/agent-chain.yaml` (default `plan-build-review`; optional `research-plan-build-review` prepends a researcher step, issue #12). Each step is a child `pi` (`{task}`/`{previous}` templates, fail-fast). A step may set `rs_guard: true` (issue #7, chain-level): when the overlay enables `rs-guard`, the chain shells out to `rs-guard --diff-file` on `git diff HEAD` before the agent runs and feeds the findings into the step; overlay off or empty diff = skills-only; overlay on + missing binary or a non-zero rs-guard exit fails the chain closed. Mode `chain` still warns and uses the solo allowlist until wired (#8).
 _Avoid_: pipeline, workflow (those include overnight/unattended systems)
 
 **Subagent**:
@@ -59,12 +59,16 @@ Tool that delegates a task to a specialized agent with an isolated context windo
 _Avoid_: orchestrator, multi-agent (overloaded; "subagent" is the harness's name for the single-tool delegation)
 
 **Team**:
-Dispatcher-only mode. Primary Pi has no codebase tools.
+Dispatcher-only mode, launched only via `pi-life <life> team`. The primary loads `extensions/agent-team.ts`, which sets `dispatch_agent` as the ONLY active tool (no read/write/bash) and dispatches tasks to team members as child `pi` processes that always inherit the damage-control gate. Teams live under the `teams:` key of `agent-chain.yaml` (same file and precedence as chains); the default team is `planner, builder, reviewer, researcher`; `PI_TEAM` env overrides the active team; `/team-list` lists them. Structurally mutually exclusive with chain (`agent-chain.ts`) and tilldone (`status-line.ts`): the launcher never loads those in team mode, so `setActiveTools` cannot conflict.
 _Avoid_: swarm, crew
 
 **Tracker**:
 Where tickets are created. `rust`, `ruby`, and `python` use `github-issue`. `elixir` (work) uses a machine-local overlay skill for the internal tool. The overlay's `tracker.skill` is loaded as a `--skill` arg in the argv, so the work-internal tool is available without committing its name to the public repo.
 _Avoid_: board, project (GitHub Project is a surface of the tracker)
+
+**Herdr**:
+Terminal multiplexer that hosts parallel work: workspaces, panes, `herdr worktree`, and `herdr agent start <name> --kind pi -- pi-life <life>` as the way to start sibling lives. Herdr is a **host**, not something the harness wraps: no Pi extension shells out to it (issue #19). The `herdr` skill is on the mantra allowlist of every life but no-ops unless `HERDR_ENV=1`, so a plain terminal is unaffected. Doctor warns (never fails) when the `herdr` binary is off PATH.
+_Avoid_: multiplexer-as-host confusion (Herdr hosts Pi lives; Pi is the agent)
 
 ## Config format
 
