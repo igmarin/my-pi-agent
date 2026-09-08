@@ -111,7 +111,14 @@ function asNullableString(value: unknown, key: string): string | null {
 	return value;
 }
 
-function asRoleMap(
+/**
+ * Validate a role → string map against the closed ROLE_KEYS set. Shared by
+ * the overlay parser, the env deserializer, boot-config profile extraction,
+ * and the launcher's profile rows — one contract, one error vocabulary.
+ * Fail closed on empty roles, non-string values, and unknown roles (a
+ * misspelled role would otherwise be silently ignored at launch).
+ */
+export function asRoleMap(
 	value: unknown,
 	key: string,
 	prefix = "overlay",
@@ -124,8 +131,10 @@ function asRoleMap(
 	}
 	const out: Record<string, string> = {};
 	for (const [role, v] of Object.entries(value)) {
-		if (!role) {
-			throw new OverlayParseError(`${prefix}: ${key} has an empty role name`);
+		if (!(ROLE_KEYS as readonly string[]).includes(role)) {
+			throw new OverlayParseError(
+				`${prefix}: ${key}.${role} is not a known role (${ROLE_KEYS.join(", ")})`,
+			);
 		}
 		if (typeof v !== "string" || !v) {
 			throw new OverlayParseError(
@@ -135,6 +144,28 @@ function asRoleMap(
 		out[role] = v;
 	}
 	return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** As `asRoleMap`, but the values must be valid pi thinking levels. */
+export function asThinkingMap(
+	value: unknown,
+	key: string,
+	prefix = "overlay",
+): Record<string, string> | undefined {
+	const map = asRoleMap(value, key, prefix);
+	if (map == null) return undefined;
+	for (const [role, level] of Object.entries(map)) {
+		if (!isThinkingLevelName(level)) {
+			throw new OverlayParseError(
+				`${prefix}: ${key}.${role} must be a thinking level (${THINKING_LEVELS.join(", ")})`,
+			);
+		}
+	}
+	return map;
+}
+
+export function isThinkingLevelName(value: string): value is ThinkingLevelName {
+	return (THINKING_LEVELS as readonly string[]).includes(value);
 }
 
 /**
@@ -196,7 +227,7 @@ export function parseOverlayDoc(doc: unknown): Overlay {
 
 	const extraSkills = asStringList(doc.extra_skills, "extra_skills");
 	const models = asRoleMap(doc.models, "models");
-	const thinking = asRoleMap(doc.thinking, "thinking");
+	const thinking = asThinkingMap(doc.thinking, "thinking");
 
 	return {
 		capabilities: Object.freeze(caps),
@@ -320,7 +351,7 @@ export function deserializeOverlayEnv(payload: string): Overlay {
 		);
 	}
 	const models = asRoleMap(doc.models, "models", "PI_OVERLAY");
-	const thinking = asRoleMap(doc.thinking, "thinking", "PI_OVERLAY");
+	const thinking = asThinkingMap(doc.thinking, "thinking", "PI_OVERLAY");
 	return {
 		capabilities: Object.freeze(out),
 		extraSkills: Object.freeze(extraSkills),

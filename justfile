@@ -408,7 +408,34 @@ smoke:
     MY_PI_AGENT_HOME="${badmodels}" PI_SKILLS_HOME="${tmp}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/badmodels.err" || status=$?
     test "${status}" -eq 2
     grep -q 'models must be a mapping' "${tmp}/badmodels.err"
-    rm -rf "${solo_life}" "${badmodels}"
+    # (m2) Issue #15: invalid thinking level and unknown role -> exit 2
+    # (shared contract with the overlay parser; no quiet typo failures).
+    badlevel="$(mktemp -d)"
+    mkdir -p "${badlevel}/profiles"
+    printf '%s\n' 'life: python' 'tracker: none' 'packs: []' 'mantra: [i-have-adhd]' 'thinking:' '  solo: highh' >"${badlevel}/profiles/python.yaml"
+    status=0
+    MY_PI_AGENT_HOME="${badlevel}" PI_SKILLS_HOME="${tmp}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/badlevel.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'thinking.solo must be a thinking level' "${tmp}/badlevel.err"
+    badrole="$(mktemp -d)"
+    mkdir -p "${badrole}/profiles"
+    printf '%s\n' 'life: python' 'tracker: none' 'packs: []' 'mantra: [i-have-adhd]' 'models:' '  sol: openrouter/x' >"${badrole}/profiles/python.yaml"
+    status=0
+    MY_PI_AGENT_HOME="${badrole}" PI_SKILLS_HOME="${tmp}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/badrole.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'models.sol is not a known role' "${tmp}/badrole.err"
+    # (m3) overlay thinking level and role are validated the same way.
+    printf '%s\n' 'thinking:' '  solo: highh' >"${dumprel}/.pi/capabilities.yaml"
+    status=0
+    "${bin}" --dump-overlay "${dumprel}" >/dev/null 2>"${tmp}/badovl.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'thinking.solo must be a thinking level' "${tmp}/badovl.err"
+    printf '%s\n' 'models:' '  sol: openrouter/x' >"${dumprel}/.pi/capabilities.yaml"
+    status=0
+    "${bin}" --dump-overlay "${dumprel}" >/dev/null 2>"${tmp}/badovl2.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'models.sol is not a known role' "${tmp}/badovl2.err"
+    rm -rf "${solo_life}" "${badmodels}" "${badlevel}" "${badrole}"
     # (j) Issue #17: no work-internal tracker name/URL/token in the public repo.
     # The sentinel is a placeholder; if it ever matches a real identifier, the
     # harness has leaked a private name. Excludes the justfile itself (which

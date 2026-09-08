@@ -13,9 +13,12 @@ import {
 	buildOverlayDoc,
 	extractProfileModelDefaults,
 	findModelByReference,
-	isThinkingLevel,
 } from "./boot-config.ts";
-import { parseOverlayDoc, serializeOverlayEnv } from "./capabilities.ts";
+import {
+	isThinkingLevelName,
+	parseOverlayDoc,
+	serializeOverlayEnv,
+} from "./capabilities.ts";
 
 describe("extractProfileModelDefaults", () => {
 	test("returns empty for absent keys", () => {
@@ -54,6 +57,15 @@ thinking:
 		expect(() => extractProfileModelDefaults({ models: ["solo"] })).toThrow(
 			/models must be a mapping/,
 		);
+	});
+
+	test("rejects unknown roles and invalid thinking levels (shared contract)", () => {
+		expect(() =>
+			extractProfileModelDefaults({ models: { sol: "openrouter/x" } }),
+		).toThrow(/models\.sol is not a known role/);
+		expect(() =>
+			extractProfileModelDefaults({ thinking: { solo: "highh" } }),
+		).toThrow(/thinking\.solo must be a thinking level/);
 	});
 
 	test("ignores non-object doc shapes", () => {
@@ -97,7 +109,7 @@ describe("findModelByReference", () => {
 	});
 });
 
-describe("isThinkingLevel", () => {
+describe("isThinkingLevelName", () => {
 	test("accepts the seven pi levels and rejects anything else", () => {
 		for (const level of [
 			"off",
@@ -108,11 +120,11 @@ describe("isThinkingLevel", () => {
 			"xhigh",
 			"max",
 		]) {
-			expect(isThinkingLevel(level)).toBe(true);
+			expect(isThinkingLevelName(level)).toBe(true);
 		}
-		expect(isThinkingLevel("medium-ish")).toBe(false);
-		expect(isThinkingLevel("")).toBe(false);
-		expect(isThinkingLevel("HIGH")).toBe(false);
+		expect(isThinkingLevelName("medium-ish")).toBe(false);
+		expect(isThinkingLevelName("")).toBe(false);
+		expect(isThinkingLevelName("HIGH")).toBe(false);
 	});
 });
 

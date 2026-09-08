@@ -81,9 +81,22 @@ describe("parseOverlayDoc", () => {
 		);
 	});
 
-	test("unknown roles inside models/thinking are accepted (future-proof)", () => {
-		const o = parseOverlayDoc({ models: { intern: "openrouter/x" } });
-		expect(o.models).toEqual({ intern: "openrouter/x" });
+	test("unknown roles inside models/thinking are rejected (fail closed)", () => {
+		expect(() =>
+			parseOverlayDoc({ models: { intern: "openrouter/x" } }),
+		).toThrow(/models\.intern is not a known role/);
+		expect(() => parseOverlayDoc({ thinking: { sol: "medium" } })).toThrow(
+			/thinking\.sol is not a known role/,
+		);
+	});
+
+	test("thinking values must be valid pi thinking levels", () => {
+		expect(() => parseOverlayDoc({ thinking: { solo: "highh" } })).toThrow(
+			/thinking\.solo must be a thinking level/,
+		);
+		expect(parseOverlayDoc({ thinking: { solo: "xhigh" } }).thinking).toEqual({
+			solo: "xhigh",
+		});
 	});
 
 	test("non-boolean capability throws", () => {

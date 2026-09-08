@@ -29,13 +29,15 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { parse, stringify } from "yaml";
 import {
+	asRoleMap,
+	asThinkingMap,
 	CAPABILITY_KEYS,
 	type CapabilityKey,
+	isThinkingLevelName,
 	type Overlay,
 	ROLE_KEYS,
 	serializeOverlayEnv,
 	THINKING_LEVELS,
-	type ThinkingLevelName,
 } from "./capabilities.ts";
 
 export interface ProfileModelDefaults {
@@ -45,28 +47,20 @@ export interface ProfileModelDefaults {
 
 /**
  * Extract optional models/thinking defaults from a parsed profile YAML doc.
- * Malformed values throw — the caller skips model config on throw.
+ * Delegates to the shared role-map/thinking validators so profiles, overlays,
+ * and the env payload enforce one contract. Throws on malformed values —
+ * the caller skips model config on throw.
  */
 export function extractProfileModelDefaults(
 	doc: unknown,
 ): ProfileModelDefaults {
 	if (doc == null || typeof doc !== "object" || Array.isArray(doc)) return {};
+	const raw = doc as Record<string, unknown>;
+	const models = asRoleMap(raw.models, "models", "profile");
+	const thinking = asThinkingMap(raw.thinking, "thinking", "profile");
 	const out: ProfileModelDefaults = {};
-	for (const key of ["models", "thinking"] as const) {
-		const raw = (doc as Record<string, unknown>)[key];
-		if (raw == null) continue;
-		if (typeof raw !== "object" || Array.isArray(raw)) {
-			throw new Error(`profile: ${key} must be a mapping of role → string`);
-		}
-		const map: Record<string, string> = {};
-		for (const [role, v] of Object.entries(raw)) {
-			if (typeof v !== "string" || !v) {
-				throw new Error(`profile: ${key}.${role} must be a non-empty string`);
-			}
-			map[role] = v;
-		}
-		if (Object.keys(map).length > 0) out[key] = map;
-	}
+	if (models) out.models = models;
+	if (thinking) out.thinking = thinking;
 	return out;
 }
 
@@ -84,10 +78,6 @@ export function findModelByReference<
 	if (canonical) return canonical;
 	const bare = models.filter((m) => m.id === ref);
 	return bare.length === 1 ? bare[0] : undefined;
-}
-
-export function isThinkingLevel(value: string): value is ThinkingLevelName {
-	return (THINKING_LEVELS as readonly string[]).includes(value);
 }
 
 /** Build the YAML doc object for .pi/capabilities.yaml. */
@@ -258,7 +248,7 @@ export default function (pi: ExtensionAPI) {
 			}
 		}
 		const soloThinking = configured.thinking?.solo;
-		if (soloThinking && isThinkingLevel(soloThinking)) {
+		if (soloThinking && isThinkingLevelName(soloThinking)) {
 			pi.setThinkingLevel(soloThinking);
 		}
 		if (ctx.hasUI) ctx.ui.notify(`boot-config: saved ${overlayPath}`, "info");
