@@ -22,6 +22,14 @@ Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` a
 
 `pi-life` loads `profiles/<life>.yaml`, then execs `pi -e extensions/damage-control-continue.ts --no-skills` plus allowlisted `--skill`. Invalid YAML, a missing mantra path, or a missing configured tracker path exits 2. Omit tracker = no tracker. Missing packs warn. Team mode additionally loads `extensions/agent-team.ts`: the primary is a dispatcher with `dispatch_agent` as its only tool (children inherit the damage-control gate); team definitions live under the `teams:` key of `agent-chain.yaml`. Chain mode is accepted but not wired — load `extensions/agent-chain.ts` manually for `/chain`. Blocked `git push` / `reset --hard` / `clean -fd` / `.env` / `auth.json` / writes outside cwd return feedback; the turn continues.
 
+### First launch (boot config)
+
+On the first `pi-life` launch in a target repo — when `.pi/capabilities.yaml` does not exist — a wizard walks you through the six capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright) and optional per-role model/thinking defaults, then writes the overlay only if you confirm. Existing file → the wizard is skipped. Later launches pass the overlay's solo `models`/`thinking` into `pi --model/--thinking`; `profiles/<life>.yaml` may carry optional `models:`/`thinking:` defaults that the overlay overrides. See CONTEXT.md (**Boot Config**, **Role**).
+
+### Rails-repo smoke
+
+`just smoke` ends with `just smoke-rails`: it runs `pi-life --dry-run ruby` from a Rails repo and asserts the ruby pack argv. Pass a repo explicitly (`just smoke-rails ~/path/to/app`), else it auto-discovers a `Gemfile` containing `gem "rails"` under `~/Developer`, else it falls back to a synthetic Rails fixture — never a manual step, never a hard fail.
+
 ```text
 just install
 ```

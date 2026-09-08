@@ -129,6 +129,25 @@ read_profile() {
       for (const n of list("packs")) console.log("pack\t" + n);
       const tracker = list("tracker")[0];
       if (tracker && tracker !== "none") console.log("tracker\t" + tracker);
+      // Issue #15: optional per-role model/thinking defaults. Row format is
+      // "kind\trole\tvalue" so the two-column skill rows stay unchanged.
+      const roleMap = (k) => {
+        const v = doc[k];
+        if (v == null) return;
+        if (typeof v !== "object" || Array.isArray(v)) {
+          console.error("pi-life: invalid profile YAML: " + k + " must be a mapping of role → string");
+          process.exit(2);
+        }
+        for (const [role, val] of Object.entries(v)) {
+          if (typeof val !== "string" || !val) {
+            console.error("pi-life: invalid profile YAML: " + k + "." + role + " must be a non-empty string");
+            process.exit(2);
+          }
+          console.log(k + "\t" + role + "\t" + val);
+        }
+      };
+      roleMap("models");
+      roleMap("thinking");
     ' "${file}"
   )
 }
@@ -250,6 +269,25 @@ overlay_skill_paths() {
   )
 }
 
+# Issue #15: print the solo role's model/thinking from PI_OVERLAY (set by
+# launch_life) as "kind\tvalue" rows. Empty output = nothing configured.
+overlay_solo_args() {
+  local script
+  script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
+  (
+    cd "$(dirname "${script}")/.."
+    OVERLAY_MODULE="${script}" bun -e '
+      const mod = await import(process.env.OVERLAY_MODULE);
+      const { deserializeOverlayEnv } = mod;
+      const overlay = deserializeOverlayEnv(process.env.PI_OVERLAY || "");
+      const soloModel = overlay.models?.solo;
+      const soloThinking = overlay.thinking?.solo;
+      if (soloModel) process.stdout.write("model\t" + soloModel + "\n");
+      if (soloThinking) process.stdout.write("thinking\t" + soloThinking + "\n");
+    '
+  )
+}
+
 launch_life() {
   local root="$1" life="$2" mode="$3" dry_run="$4"
   local profile="${root}/profiles/${life}.yaml"
@@ -265,7 +303,9 @@ launch_life() {
 
   local skills_home="${PI_SKILLS_HOME:-${HOME}/.agents/skills}"
   skill_names=""
-  pi_args=(-e "${root}/extensions/damage-control-continue.ts" -e "${root}/extensions/capabilities.ts" -e "${root}/extensions/clarify-gate.ts" --no-skills)
+  # Issue #15: boot-config runs BEFORE capabilities so its first-launch TUI
+  # can update PI_OVERLAY in the same session (handler order = -e order).
+  pi_args=(-e "${root}/extensions/damage-control-continue.ts" -e "${root}/extensions/boot-config.ts" -e "${root}/extensions/capabilities.ts" -e "${root}/extensions/clarify-gate.ts" --no-skills)
   if [[ "${mode}" == "solo" ]]; then
     pi_args+=(-e "${root}/extensions/status-line.ts")
   fi
@@ -278,13 +318,16 @@ launch_life() {
 
   local rows
   rows="$(read_profile "${profile}" "${root}")" || exit 2
-  local kind name
-  while IFS=$'\t' read -r kind name; do
+  local kind name value
+  local profile_solo_model="" profile_solo_thinking=""
+  while IFS=$'\t' read -r kind name value; do
     [[ -z "${kind}" ]] && continue
     case "${kind}" in
       mantra) add_named_skill 1 mantra "${name}" "${skills_home}" ;;
       pack) add_named_skill 0 pack "${name}" "${skills_home}" ;;
       tracker) add_named_skill 1 tracker "${name}" "${skills_home}" ;;
+      models) [[ "${name}" == "solo" && -n "${value}" ]] && profile_solo_model="${value}" ;;
+      thinking) [[ "${name}" == "solo" && -n "${value}" ]] && profile_solo_thinking="${value}" ;;
     esac
   done <<<"${rows}"
 
@@ -295,6 +338,27 @@ launch_life() {
   export PI_OVERLAY="${overlay}"
   export MY_PI_AGENT_HOME="${root}"
   export PI_LIFE="${life}"
+
+  # Issue #15: tell the boot-config TUI whether the overlay file exists.
+  # read_overlay's fast path cannot distinguish "missing" from "all off", so
+  # the existence signal is a separate file check.
+  if [[ -f "${PWD}/.pi/capabilities.yaml" ]]; then
+    export PI_OVERLAY_EXISTS=1
+  fi
+
+  # Issue #15: --model/--thinking for the primary session. Profile defaults
+  # apply when set; an existing overlay's solo role overrides the profile.
+  local solo_model="${profile_solo_model}" solo_thinking="${profile_solo_thinking}"
+  if [[ "${PI_OVERLAY_EXISTS:-}" == "1" ]]; then
+    while IFS=$'\t' read -r kind name; do
+      case "${kind}" in
+        model) solo_model="${name}" ;;
+        thinking) solo_thinking="${name}" ;;
+      esac
+    done < <(overlay_solo_args)
+  fi
+  [[ -n "${solo_model}" ]] && pi_args+=(--model "${solo_model}")
+  [[ -n "${solo_thinking}" ]] && pi_args+=(--thinking "${solo_thinking}")
 
   # Issue #11: overlay-defined skills (extra_skills + tracker.skill) become
   # --skill arguments so the model can actually use them, not just see them

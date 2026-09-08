@@ -22,18 +22,48 @@ export const CAPABILITY_KEYS = [
 ] as const;
 export type CapabilityKey = (typeof CAPABILITY_KEYS)[number];
 
+/** Roles the boot-config TUI can configure models/thinking for (issue #15). */
+export const ROLE_KEYS = [
+	"solo",
+	"planner",
+	"builder",
+	"reviewer",
+	"researcher",
+] as const;
+export type RoleKey = (typeof ROLE_KEYS)[number];
+
+export const THINKING_LEVELS = [
+	"off",
+	"minimal",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+	"max",
+] as const;
+export type ThinkingLevelName = (typeof THINKING_LEVELS)[number];
+
 export interface Overlay {
 	capabilities: Record<CapabilityKey, boolean>;
 	extraSkills: string[];
 	trackerSkill: string | null;
+	/** role → "provider/model" (issue #15). Absent when unset. */
+	models?: Record<string, string>;
+	/** role → thinking level (issue #15). Absent when unset. */
+	thinking?: Record<string, string>;
 }
 
 export const EMPTY_OVERLAY: Overlay = {
 	capabilities: Object.freeze(
-		Object.fromEntries(CAPABILITY_KEYS.map((k) => [k, false])) as Record<CapabilityKey, boolean>,
+		Object.fromEntries(CAPABILITY_KEYS.map((k) => [k, false])) as Record<
+			CapabilityKey,
+			boolean
+		>,
 	),
 	extraSkills: Object.freeze([]) as string[],
 	trackerSkill: null,
+	models: undefined,
+	thinking: undefined,
 };
 
 export class OverlayParseError extends Error {
@@ -49,18 +79,24 @@ function isPlainMapping(value: unknown): value is Record<string, unknown> {
 
 function asBool(value: unknown, key: string): boolean {
 	if (typeof value === "boolean") return value;
-	throw new OverlayParseError(`overlay: ${key} must be a boolean (got ${typeof value})`);
+	throw new OverlayParseError(
+		`overlay: ${key} must be a boolean (got ${typeof value})`,
+	);
 }
 
 function asStringList(value: unknown, key: string): string[] {
 	if (value == null) return [];
 	if (!Array.isArray(value)) {
-		throw new OverlayParseError(`overlay: ${key} must be a list of non-empty strings (got ${typeof value})`);
+		throw new OverlayParseError(
+			`overlay: ${key} must be a list of non-empty strings (got ${typeof value})`,
+		);
 	}
 	const out: string[] = [];
 	for (const item of value) {
 		if (typeof item !== "string" || !item) {
-			throw new OverlayParseError(`overlay: ${key} must be a list of non-empty strings`);
+			throw new OverlayParseError(
+				`overlay: ${key} must be a list of non-empty strings`,
+			);
 		}
 		out.push(item);
 	}
@@ -75,6 +111,32 @@ function asNullableString(value: unknown, key: string): string | null {
 	return value;
 }
 
+function asRoleMap(
+	value: unknown,
+	key: string,
+	prefix = "overlay",
+): Record<string, string> | undefined {
+	if (value == null) return undefined;
+	if (!isPlainMapping(value)) {
+		throw new OverlayParseError(
+			`${prefix}: ${key} must be a mapping of role → string`,
+		);
+	}
+	const out: Record<string, string> = {};
+	for (const [role, v] of Object.entries(value)) {
+		if (!role) {
+			throw new OverlayParseError(`${prefix}: ${key} has an empty role name`);
+		}
+		if (typeof v !== "string" || !v) {
+			throw new OverlayParseError(
+				`${prefix}: ${key}.${role} must be a non-empty string`,
+			);
+		}
+		out[role] = v;
+	}
+	return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /**
  * Parse a YAML-parsed overlay object. The `yaml` package is the only consumer
  * and it gives us `unknown` per parse(). The caller passes the parsed value.
@@ -85,14 +147,22 @@ export function parseOverlayDoc(doc: unknown): Overlay {
 		throw new OverlayParseError("overlay: expected a mapping at the top level");
 	}
 
-	const known = new Set<string>([...CAPABILITY_KEYS, "extra_skills", "tracker"]);
+	const known = new Set<string>([
+		...CAPABILITY_KEYS,
+		"extra_skills",
+		"tracker",
+		"models",
+		"thinking",
+	]);
 	const unknown: string[] = [];
 	for (const k of Object.keys(doc)) {
 		if (k === "tracker") continue;
 		if (!known.has(k)) unknown.push(k);
 	}
 	if (unknown.length > 0) {
-		throw new OverlayParseError(`overlay: unknown key(s): ${unknown.join(", ")}`);
+		throw new OverlayParseError(
+			`overlay: unknown key(s): ${unknown.join(", ")}`,
+		);
 	}
 
 	const caps = {} as Record<CapabilityKey, boolean>;
@@ -108,32 +178,47 @@ export function parseOverlayDoc(doc: unknown): Overlay {
 			if (k !== "skill") trackerUnknown.push(k);
 		}
 		if (trackerUnknown.length > 0) {
-			throw new OverlayParseError(`overlay: tracker has unknown key(s): ${trackerUnknown.join(", ")}`);
+			throw new OverlayParseError(
+				`overlay: tracker has unknown key(s): ${trackerUnknown.join(", ")}`,
+			);
 		}
 		if (!("skill" in trackerRaw)) {
-			throw new OverlayParseError("overlay: tracker requires a 'skill' key when present");
+			throw new OverlayParseError(
+				"overlay: tracker requires a 'skill' key when present",
+			);
 		}
 		trackerSkill = asNullableString(trackerRaw.skill, "tracker.skill");
 	} else if (trackerRaw != null) {
-		throw new OverlayParseError("overlay: tracker must be a mapping with a 'skill' key");
+		throw new OverlayParseError(
+			"overlay: tracker must be a mapping with a 'skill' key",
+		);
 	}
 
 	const extraSkills = asStringList(doc.extra_skills, "extra_skills");
+	const models = asRoleMap(doc.models, "models");
+	const thinking = asRoleMap(doc.thinking, "thinking");
 
 	return {
 		capabilities: Object.freeze(caps),
 		extraSkills: Object.freeze(extraSkills),
 		trackerSkill,
+		models,
+		thinking,
 	};
 }
 
 function cloneEmpty(): Overlay {
 	return {
 		capabilities: Object.freeze(
-			Object.fromEntries(CAPABILITY_KEYS.map((k) => [k, false])) as Record<CapabilityKey, boolean>,
+			Object.fromEntries(CAPABILITY_KEYS.map((k) => [k, false])) as Record<
+				CapabilityKey,
+				boolean
+			>,
 		),
 		extraSkills: Object.freeze([]) as string[],
 		trackerSkill: null,
+		models: undefined,
+		thinking: undefined,
 	};
 }
 
@@ -142,11 +227,20 @@ function cloneEmpty(): Overlay {
  * nothing is on, so the caller can skip the rewrite entirely.
  */
 export function buildCapabilitiesSection(overlay: Overlay): string {
-	const on: CapabilityKey[] = CAPABILITY_KEYS.filter((k) => overlay.capabilities[k]);
-	if (on.length === 0 && overlay.extraSkills.length === 0 && overlay.trackerSkill == null) {
+	const on: CapabilityKey[] = CAPABILITY_KEYS.filter(
+		(k) => overlay.capabilities[k],
+	);
+	if (
+		on.length === 0 &&
+		overlay.extraSkills.length === 0 &&
+		overlay.trackerSkill == null
+	) {
 		return "";
 	}
-	const lines: string[] = ["<capabilities>", "Capabilities enabled for this project (per .pi/capabilities.yaml):"];
+	const lines: string[] = [
+		"<capabilities>",
+		"Capabilities enabled for this project (per .pi/capabilities.yaml):",
+	];
 	for (const k of on) lines.push(`- ${k}: on`);
 	if (overlay.extraSkills.length > 0) {
 		lines.push(`- extra skills: ${overlay.extraSkills.join(", ")}`);
@@ -154,7 +248,10 @@ export function buildCapabilitiesSection(overlay: Overlay): string {
 	if (overlay.trackerSkill != null) {
 		lines.push(`- tracker skill: ${overlay.trackerSkill}`);
 	}
-	lines.push("Capabilities not listed are off; do not propose or invoke them.", "</capabilities>");
+	lines.push(
+		"Capabilities not listed are off; do not propose or invoke them.",
+		"</capabilities>",
+	);
 	return lines.join("\n");
 }
 
@@ -167,6 +264,8 @@ export function serializeOverlayEnv(overlay: Overlay): string {
 		capabilities: overlay.capabilities,
 		extraSkills: overlay.extraSkills,
 		trackerSkill: overlay.trackerSkill,
+		models: overlay.models,
+		thinking: overlay.thinking,
 	});
 }
 
@@ -193,25 +292,41 @@ export function deserializeOverlayEnv(payload: string): Overlay {
 		} else if (typeof v === "boolean") {
 			out[k] = v;
 		} else {
-			throw new OverlayParseError(`PI_OVERLAY: capabilities.${k} must be a boolean`);
+			throw new OverlayParseError(
+				`PI_OVERLAY: capabilities.${k} must be a boolean`,
+			);
 		}
 	}
 	const rawExtra = doc.extraSkills;
 	const extraSkills = Array.isArray(rawExtra)
 		? rawExtra.map((s) => {
-				if (typeof s !== "string") throw new OverlayParseError("PI_OVERLAY: extraSkills must be strings");
+				if (typeof s !== "string")
+					throw new OverlayParseError(
+						"PI_OVERLAY: extraSkills must be strings",
+					);
 				return s;
 			})
 		: [];
 	const rawTracker = doc.trackerSkill;
-	const trackerSkill = rawTracker == null ? null : typeof rawTracker === "string" ? rawTracker : null;
+	const trackerSkill =
+		rawTracker == null
+			? null
+			: typeof rawTracker === "string"
+				? rawTracker
+				: null;
 	if (rawTracker != null && typeof rawTracker !== "string") {
-		throw new OverlayParseError("PI_OVERLAY: trackerSkill must be a string or null");
+		throw new OverlayParseError(
+			"PI_OVERLAY: trackerSkill must be a string or null",
+		);
 	}
+	const models = asRoleMap(doc.models, "models", "PI_OVERLAY");
+	const thinking = asRoleMap(doc.thinking, "thinking", "PI_OVERLAY");
 	return {
 		capabilities: Object.freeze(out),
 		extraSkills: Object.freeze(extraSkills),
 		trackerSkill,
+		models,
+		thinking,
 	};
 }
 

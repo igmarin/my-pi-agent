@@ -41,9 +41,58 @@ describe("parseOverlayDoc", () => {
 		expect(() => parseOverlayDoc({ foo: true })).toThrow(/unknown key.*foo/);
 	});
 
+	test("models/thinking are accepted as optional role maps", () => {
+		const o = parseOverlayDoc({
+			graphify: true,
+			models: {
+				solo: "openrouter/z-ai/glm-5.3-flash",
+				builder: "openrouter/other",
+			},
+			thinking: { solo: "medium" },
+		});
+		expect(o.models).toEqual({
+			solo: "openrouter/z-ai/glm-5.3-flash",
+			builder: "openrouter/other",
+		});
+		expect(o.thinking).toEqual({ solo: "medium" });
+	});
+
+	test("absent models/thinking stay undefined (not empty objects)", () => {
+		const o = parseOverlayDoc({ graphify: true });
+		expect(o.models).toBeUndefined();
+		expect(o.thinking).toBeUndefined();
+	});
+
+	test("empty models/thinking mappings normalize to undefined", () => {
+		const o = parseOverlayDoc({ models: {}, thinking: {} });
+		expect(o.models).toBeUndefined();
+		expect(o.thinking).toBeUndefined();
+	});
+
+	test("models/thinking must be mappings of non-empty strings", () => {
+		expect(() => parseOverlayDoc({ models: "solo" })).toThrow(
+			/models must be a mapping/,
+		);
+		expect(() => parseOverlayDoc({ models: { solo: 42 } })).toThrow(
+			/models\.solo must be a non-empty string/,
+		);
+		expect(() => parseOverlayDoc({ thinking: { solo: "" } })).toThrow(
+			/thinking\.solo must be a non-empty string/,
+		);
+	});
+
+	test("unknown roles inside models/thinking are accepted (future-proof)", () => {
+		const o = parseOverlayDoc({ models: { intern: "openrouter/x" } });
+		expect(o.models).toEqual({ intern: "openrouter/x" });
+	});
+
 	test("non-boolean capability throws", () => {
-		expect(() => parseOverlayDoc({ graphify: "yes" })).toThrow(/graphify must be a boolean/);
-		expect(() => parseOverlayDoc({ graphify: 1 })).toThrow(/graphify must be a boolean/);
+		expect(() => parseOverlayDoc({ graphify: "yes" })).toThrow(
+			/graphify must be a boolean/,
+		);
+		expect(() => parseOverlayDoc({ graphify: 1 })).toThrow(
+			/graphify must be a boolean/,
+		);
 	});
 
 	test("boolean capability is accepted and defaults the rest to false", () => {
@@ -57,29 +106,51 @@ describe("parseOverlayDoc", () => {
 	});
 
 	test("extra_skills must be a list of non-empty strings (no scalar coercion)", () => {
-		expect(parseOverlayDoc({ extra_skills: ["a", "b"] }).extraSkills).toEqual(["a", "b"]);
-		expect(() => parseOverlayDoc({ extra_skills: "single" })).toThrow(/must be a list/);
-		expect(() => parseOverlayDoc({ extra_skills: [""] })).toThrow(/non-empty strings/);
-		expect(() => parseOverlayDoc({ extra_skills: [42] })).toThrow(/non-empty strings/);
+		expect(parseOverlayDoc({ extra_skills: ["a", "b"] }).extraSkills).toEqual([
+			"a",
+			"b",
+		]);
+		expect(() => parseOverlayDoc({ extra_skills: "single" })).toThrow(
+			/must be a list/,
+		);
+		expect(() => parseOverlayDoc({ extra_skills: [""] })).toThrow(
+			/non-empty strings/,
+		);
+		expect(() => parseOverlayDoc({ extra_skills: [42] })).toThrow(
+			/non-empty strings/,
+		);
 	});
 
 	test("tracker must be a mapping with a 'skill' key", () => {
-		expect(() => parseOverlayDoc({ tracker: "github-issue" })).toThrow(/tracker must be a mapping/);
-		expect(() => parseOverlayDoc({ tracker: {} })).toThrow(/tracker requires a 'skill' key/);
-		expect(() => parseOverlayDoc({ tracker: { skill: "" } })).toThrow(/tracker.skill must be a non-empty string/);
-		expect(parseOverlayDoc({ tracker: { skill: "local/tracker" } }).trackerSkill).toBe("local/tracker");
+		expect(() => parseOverlayDoc({ tracker: "github-issue" })).toThrow(
+			/tracker must be a mapping/,
+		);
+		expect(() => parseOverlayDoc({ tracker: {} })).toThrow(
+			/tracker requires a 'skill' key/,
+		);
+		expect(() => parseOverlayDoc({ tracker: { skill: "" } })).toThrow(
+			/tracker.skill must be a non-empty string/,
+		);
+		expect(
+			parseOverlayDoc({ tracker: { skill: "local/tracker" } }).trackerSkill,
+		).toBe("local/tracker");
 	});
 
 	test("tracker rejects unknown keys (fail closed)", () => {
-		expect(() => parseOverlayDoc({ tracker: { skill: "x", retries: 3 } })).toThrow(/tracker has unknown key.*retries/);
-		expect(() => parseOverlayDoc({ tracker: { skill: "x", project: "y" } })).toThrow(/tracker has unknown key.*project/);
+		expect(() =>
+			parseOverlayDoc({ tracker: { skill: "x", retries: 3 } }),
+		).toThrow(/tracker has unknown key.*retries/);
+		expect(() =>
+			parseOverlayDoc({ tracker: { skill: "x", project: "y" } }),
+		).toThrow(/tracker has unknown key.*project/);
 	});
 
 	test("fast-path EMPTY_OVERLAY JSON matches serializeOverlayEnv(EMPTY_OVERLAY)", () => {
 		// The bash read_overlay fast path inlines this JSON for the no-overlay
 		// case. If the capability key list ever changes, this assertion will
 		// fail, forcing the bash literal to be updated alongside.
-		const expected = '{"capabilities":{"graphify":false,"codegraph":false,"serena":false,"rs-guard":false,"obscura":false,"playwright":false},"extraSkills":[],"trackerSkill":null}';
+		const expected =
+			'{"capabilities":{"graphify":false,"codegraph":false,"serena":false,"rs-guard":false,"obscura":false,"playwright":false},"extraSkills":[],"trackerSkill":null}';
 		expect(serializeOverlayEnv(EMPTY_OVERLAY)).toBe(expected);
 	});
 
@@ -106,7 +177,10 @@ tracker:
 			obscura: false,
 			playwright: true,
 		});
-		expect(o.extraSkills).toEqual([".pi/local-skills/team-rule", ".pi/local-skills/code-style"]);
+		expect(o.extraSkills).toEqual([
+			".pi/local-skills/team-rule",
+			".pi/local-skills/code-style",
+		]);
 		expect(o.trackerSkill).toBe(".pi/local-tracker/work");
 	});
 });
@@ -160,8 +234,37 @@ describe("serializeOverlayEnv / deserializeOverlayEnv", () => {
 		expect(deserializeOverlayEnv(payload)).toEqual(o);
 	});
 
+	test("models/thinking round-trip through the env payload", () => {
+		const o = parseOverlayDoc({
+			models: { solo: "openrouter/z-ai/glm-5.3-flash" },
+			thinking: { solo: "high" },
+		});
+		const payload = serializeOverlayEnv(o);
+		expect(payload).toContain(
+			'"models":{"solo":"openrouter/z-ai/glm-5.3-flash"}',
+		);
+		expect(payload).toContain('"thinking":{"solo":"high"}');
+		expect(deserializeOverlayEnv(payload)).toEqual(o);
+	});
+
+	test("serializeOverlayEnv omits models/thinking when unset (fast-path JSON stays stable)", () => {
+		const payload = serializeOverlayEnv(EMPTY_OVERLAY);
+		expect(payload).not.toContain("models");
+		expect(payload).not.toContain("thinking");
+		expect(deserializeOverlayEnv(payload)).toEqual(EMPTY_OVERLAY);
+	});
+
+	test("PI_OVERLAY with malformed models throws", () => {
+		const bad = JSON.stringify({ capabilities: {}, models: { solo: 7 } });
+		expect(() => deserializeOverlayEnv(bad)).toThrow(
+			/models\.solo must be a non-empty string/,
+		);
+	});
+
 	test("PI_OVERLAY with wrong capability type throws", () => {
 		const bad = JSON.stringify({ capabilities: { graphify: "yes" } });
-		expect(() => deserializeOverlayEnv(bad)).toThrow(/capabilities.graphify must be a boolean/);
+		expect(() => deserializeOverlayEnv(bad)).toThrow(
+			/capabilities.graphify must be a boolean/,
+		);
 	});
 });

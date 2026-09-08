@@ -45,6 +45,7 @@ smoke:
       *) echo "INV-skills: rust argv must include -e damage-control-continue -e capabilities.ts -e clarify-gate.ts --no-skills: ${rust_out}" >&2; exit 1 ;;
     esac
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/damage-control-continue.ts"
+    echo "${rust_out}" | grep -q -- "-e ${root}/extensions/boot-config.ts"
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/capabilities.ts"
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/clarify-gate.ts"
     echo "${rust_out}" | grep -q -- "--skill ${tmp}/ponytail"
@@ -363,6 +364,51 @@ smoke:
     esac
     # Profile did not require a tracker, so no "missing required tracker" error.
     ! grep -q 'missing required tracker' "${tmp}/notrack.err"
+    # (k) Issue #15: overlay models/thinking round-trip through --dump-overlay.
+    printf '%s\n' 'models:' '  solo: openrouter/z-ai/glm-5.3-flash' 'thinking:' '  solo: medium' >"${dumprel}/.pi/capabilities.yaml"
+    models_payload="$("${bin}" --dump-overlay "${dumprel}")"
+    case "${models_payload}" in
+      *'"models":{"solo":"openrouter/z-ai/glm-5.3-flash"}'*'"thinking":{"solo":"medium"}'*) ;;
+      *) echo "expected models/thinking in overlay payload, got: ${models_payload}" >&2; exit 1 ;;
+    esac
+    # (l) Issue #15: profile models/thinking defaults become --model/--thinking
+    # for the primary session (solo role); an existing overlay's solo model
+    # overrides the profile default.
+    solo_life="$(mktemp -d)"
+    mkdir -p "${solo_life}/profiles" "${solo_life}/i-have-adhd"
+    printf '%s\n' '# i-have-adhd' >"${solo_life}/i-have-adhd/SKILL.md"
+    printf '%s\n' 'life: python' 'tracker: none' 'packs: []' 'mantra: [i-have-adhd]' \
+      'models:' '  solo: openrouter/profile-default' 'thinking:' '  solo: medium' \
+      >"${solo_life}/profiles/python.yaml"
+    solo_out="$(cd "${solo_life}" && MY_PI_AGENT_HOME="${solo_life}" PI_SKILLS_HOME="${tmp}" "${bin}" --dry-run python 2>"${tmp}/solo.err")"
+    case "${solo_out}" in
+      *"--model openrouter/profile-default"*) ;;
+      *) echo "expected --model openrouter/profile-default from profile, got: ${solo_out}" >&2; exit 1 ;;
+    esac
+    case "${solo_out}" in
+      *"--thinking medium"*) ;;
+      *) echo "expected --thinking medium from profile, got: ${solo_out}" >&2; exit 1 ;;
+    esac
+    mkdir -p "${solo_life}/.pi"
+    printf '%s\n' 'models:' '  solo: openrouter/override' >"${solo_life}/.pi/capabilities.yaml"
+    solo_override_out="$(cd "${solo_life}" && MY_PI_AGENT_HOME="${solo_life}" PI_SKILLS_HOME="${tmp}" "${bin}" --dry-run python 2>"${tmp}/solo2.err")"
+    case "${solo_override_out}" in
+      *"--model openrouter/override"*) ;;
+      *) echo "expected overlay solo model override, got: ${solo_override_out}" >&2; exit 1 ;;
+    esac
+    case "${solo_override_out}" in
+      *"--model openrouter/profile-default"*)
+        echo "overlay must override the profile solo model, got: ${solo_override_out}" >&2; exit 1 ;;
+    esac
+    # (m) Issue #15: malformed profile models -> exit 2 (fail closed).
+    badmodels="$(mktemp -d)"
+    mkdir -p "${badmodels}/profiles"
+    printf '%s\n' 'life: python' 'tracker: none' 'packs: []' 'mantra: [i-have-adhd]' 'models: solo' >"${badmodels}/profiles/python.yaml"
+    status=0
+    MY_PI_AGENT_HOME="${badmodels}" PI_SKILLS_HOME="${tmp}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/badmodels.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'models must be a mapping' "${tmp}/badmodels.err"
+    rm -rf "${solo_life}" "${badmodels}"
     # (j) Issue #17: no work-internal tracker name/URL/token in the public repo.
     # The sentinel is a placeholder; if it ever matches a real identifier, the
     # harness has leaked a private name. Excludes the justfile itself (which
@@ -408,10 +454,11 @@ smoke:
       console.log("agent-chain default chain ok");
     '
     echo "smoke ok"
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
+      "{{root}}/extensions/boot-config.ts" \
       "{{root}}/extensions/capabilities.ts" \
       "{{root}}/extensions/clarify-gate.ts" \
       "{{root}}/extensions/agent-chain.ts" \
@@ -459,6 +506,54 @@ smoke:
       if (expansionOperandRisk("git mv a b")) { console.error("git mv flagged"); process.exit(1); }
       console.log("damage-control unit checks ok");
     '
+    # Issue #14: smoke also runs from a Rails repo (real if discoverable,
+    # synthetic fixture otherwise — never a manual step, never a hard fail).
+    just smoke-rails
+
+# Issue #14: run pi-life ruby from a Rails repo. Optional repo path arg;
+# without one: auto-discover under ~/Developer, else use a temp fixture.
+smoke-rails repo='':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="{{justfile_directory()}}"
+    bin="${root}/bin/pi-life"
+    repo="{{repo}}"
+    if [[ -n "${repo}" && ( ! -d "${repo}" || ! -f "${repo}/Gemfile" ) ]]; then
+      echo "smoke-rails: not a Rails repo (no Gemfile): ${repo}" >&2
+      exit 1
+    fi
+    if [[ -z "${repo}" ]]; then
+      repo="$(find "${HOME}/Developer" -maxdepth 4 -name Gemfile -not -path '*/node_modules/*' \
+        -exec grep -lE '^gem .rails.' {} + 2>/dev/null | head -1 | xargs -I{} dirname {} 2>/dev/null || true)"
+    fi
+    fixture=""
+    if [[ -z "${repo}" ]]; then
+      fixture="$(mktemp -d)"
+      repo="${fixture}"
+      printf 'source "https://rubygems.org"\ngem "rails", "~> 7.1"\n' >"${repo}/Gemfile"
+    fi
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "${tmp}" ${fixture:+"${fixture}"}' EXIT
+    for name in i-have-adhd ponytail ponytail-review deslop clarify requirements-clarifier tdd herdr \
+                github-issue ruby-core-skills rails-agent-skills; do
+      mkdir -p "${tmp}/${name}"
+      printf '%s\n' "# ${name}" >"${tmp}/${name}/SKILL.md"
+    done
+    out="$(cd "${repo}" && PI_SKILLS_HOME="${tmp}" "${bin}" --dry-run ruby 2>"${tmp}/err")"
+    case "${out}" in
+      pi\ -e\ *damage-control-continue.ts\ *capabilities.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
+      *) echo "smoke-rails: INV-skills argv wrong: ${out}" >&2; exit 1 ;;
+    esac
+    echo "${out}" | grep -q -- "--skill ${tmp}/ruby-core-skills"
+    echo "${out}" | grep -q -- "--skill ${tmp}/rails-agent-skills"
+    echo "${out}" | grep -q -- "--skill ${tmp}/github-issue"
+    ! grep -q -- "elixir-phoenix-skills" <<<"${out}"
+    ! grep -q -- "python" <<<"${out}"
+    if [[ -n "${fixture}" ]]; then
+      echo "smoke-rails ok (synthetic fixture; no local Rails repo found)"
+    else
+      echo "smoke-rails ok (${repo})"
+    fi
 
 # Harness-dev: damage-control-continue (does not launch via pi-life)
 ext-damage-control:
