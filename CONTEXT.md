@@ -39,7 +39,7 @@ This repo: extensions, profiles, `pi-life`, doctor. Host is Pi.
 _Avoid_: runtime, orchestrator, framework
 
 **Doctor**:
-`pi-life doctor [life]` health check (replaces the pre-#13 stub). Fail-closed (exit 2): `pi`, `bun`, overlay parse failure. Warns and exits 0: optional gaps (missing packs for the given `[life]`, `just`, `rs-guard`, `herdr`, `core.excludesfile` patterns). Prints the report keys `life`/`harness`/`cwd`/`overlay`/`required`/`optional`. Diagnostics (warnings, parse errors) go to stderr; the report goes to stdout.
+`pi-life doctor [life]` health check (replaces the pre-#13 stub). Fail-closed (exit 2): `pi`, `bun`, overlay parse failure, and — for the given `[life]` — a missing required mantra or tracker skill path (the same contract the launcher enforces; mantra skills are user-provisioned under `PI_SKILLS_HOME`/`~/.agents/skills`, never vendored). Warns and exits 0: optional gaps (missing packs for the given `[life]`, `just`, `rs-guard`, `herdr`, `core.excludesfile` patterns). Prints the report keys `life`/`harness`/`cwd`/`overlay`/`required`/`optional`. Diagnostics (warnings, parse errors) go to stderr; the report goes to stdout.
 _Avoid_: diagnostics on stdout (warnings are `warning: `-prefixed on stderr)
 
 **Mantra**:

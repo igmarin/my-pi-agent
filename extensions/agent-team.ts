@@ -28,7 +28,12 @@
 
 import { readFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { pickTeam, resolveChainFile, type TeamDef } from "./agent-chain.ts";
+import {
+	parseAgentTeams,
+	pickTeam,
+	resolveChainFile,
+	type TeamDef,
+} from "./agent-chain.ts";
 import { collectAgents } from "./agentScan.ts";
 import {
 	aggregateUsage,

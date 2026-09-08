@@ -171,15 +171,28 @@ smoke:
     grep -q 'required: ok' <<<"${out}"
     grep -q 'optional:' <<<"${out}"
     # (j) doctor <life> with packs missing -> exit 0, warnings named. Uses a
-    # DEDICATED EMPTY skills home (not ${tmp}, which stubs every ruby pack) so
-    # the missing-pack warning genuinely fires.
+    # DEDICATED skills home that has every required mantra/tracker stubbed
+    # (copied from ${tmp}) but no ruby packs, so the missing-pack warning
+    # genuinely fires and nothing else fails.
     doc_life_cwd="$(mktemp -d)"
     doc_packs_home="$(mktemp -d)"
+    for name in i-have-adhd ponytail ponytail-review deslop clarify requirements-clarifier tdd herdr github-issue; do
+      cp -r "${tmp}/${name}" "${doc_packs_home}/${name}"
+    done
     status=0
     out="$(cd "${doc_life_cwd}" && PI_SKILLS_HOME="${doc_packs_home}" "${bin}" doctor ruby 2>&1)" || status=$?
     test "${status}" -eq 0
     grep -q 'life: ruby' <<<"${out}"
     grep -q 'warning: missing pack ruby-core-skills' <<<"${out}"
+    # (j2) doctor <life> with a missing required mantra path -> exit 2, same
+    # message the launcher prints (doctor is a launch preflight).
+    doc_nomantra_home="$(mktemp -d)"
+    mkdir -p "${doc_nomantra_home}/github-issue"
+    printf '%s\n' '# github-issue' >"${doc_nomantra_home}/github-issue/SKILL.md"
+    status=0
+    out="$(cd "${doc_life_cwd}" && PI_SKILLS_HOME="${doc_nomantra_home}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 2
+    grep -q 'missing required mantra' <<<"${out}"
     # (k) doctor with overlay parse failure -> exit 2.
     doc_bad="$(mktemp -d)"
     mkdir -p "${doc_bad}/.pi"
@@ -223,7 +236,7 @@ smoke:
     test "${status}" -eq 0
     grep -q 'warning: herdr not on PATH' <<<"${out}"
     grep -q 'optional:' <<<"${out}"
-    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_packs_home}" "${doc_bad}" "${doc_badprof_home}" "${doc_badprof_cwd}" "${doc_nobun_home}" "${doc_nobun_cwd}" "${doc_nohome}" "${doc_noh_cwd}"
+    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_packs_home}" "${doc_nomantra_home}" "${doc_bad}" "${doc_badprof_home}" "${doc_badprof_cwd}" "${doc_nobun_home}" "${doc_nobun_cwd}" "${doc_nohome}" "${doc_noh_cwd}"
     status=0
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2

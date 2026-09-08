@@ -365,16 +365,26 @@ export function planGuardStep(p: {
 	return { action: "run" };
 }
 
-/** `git diff HEAD` output (staged + unstaged), or null when git fails. */
-async function gitDiffHead(cwd: string): Promise<string | null> {
+/** `git diff HEAD` output (staged + unstaged). Throws when git fails so the
+ * guard fails closed instead of silently skipping on a broken repo. */
+async function gitDiffHead(cwd: string, signal?: AbortSignal): Promise<string> {
 	const proc = Bun.spawn(["git", "diff", "HEAD"], {
 		cwd,
 		stdout: "pipe",
 		stderr: "pipe",
+		signal,
 	});
-	const out = await new Response(proc.stdout).text();
-	await proc.exited;
-	return proc.exitCode === 0 ? out : null;
+	const [out, err] = await Promise.all([
+		new Response(proc.stdout).text(),
+		new Response(proc.stderr).text(),
+	]);
+	const code = await proc.exited;
+	if (code !== 0) {
+		throw new Error(
+			`'git diff HEAD' failed (exit ${code})${err.trim() ? `: ${err.trim()}` : ""}`,
+		);
+	}
+	return out;
 }
 
 /**
@@ -411,19 +421,29 @@ function rsGuardEnv(): Record<string, string> {
 /**
  * Run the rs-guard half of a `rs_guard: true` step. Returns a findings note to
  * append to the step's task (null when skipped), or throws ChainError on a
- * missing binary (overlay on) or a non-zero rs-guard exit.
+ * missing binary (overlay on), a failed `git diff HEAD` (fail closed), or a
+ * non-zero rs-guard exit. Forwards `signal` to both subprocesses so an
+ * aborted chain tears them down.
  */
 async function runGuardStep(
 	chainName: string,
 	stepNo: number,
 	cwd: string,
+	signal?: AbortSignal,
 ): Promise<string | null> {
 	const hasBinary = Bun.which("rs-guard") != null;
-	const diff = await gitDiffHead(cwd);
+	let diff: string;
+	try {
+		diff = await gitDiffHead(cwd, signal);
+	} catch (e) {
+		throw new ChainError(
+			`chain ${chainName} step ${stepNo}: ${e instanceof Error ? e.message : String(e)}`,
+		);
+	}
 	const plan = planGuardStep({
 		overlayOn: overlayRsGuardEnabled(process.env.PI_OVERLAY),
 		hasBinary,
-		hasDiff: diff != null && diff.trim() !== "",
+		hasDiff: diff.trim() !== "",
 	});
 	if (plan.action === "error")
 		throw new ChainError(`chain ${chainName} step ${stepNo}: ${plan.reason}`);
@@ -432,12 +452,13 @@ async function runGuardStep(
 	const dir = mkdtempSync(join(tmpdir(), "rs-guard-chain-"));
 	try {
 		const diffFile = join(dir, "diff.patch");
-		writeFileSync(diffFile, diff!);
+		writeFileSync(diffFile, diff);
 		const proc = Bun.spawn(["rs-guard", "--diff-file", diffFile], {
 			cwd,
 			stdout: "pipe",
 			stderr: "pipe",
 			env: rsGuardEnv(),
+			signal,
 		});
 		const [out, err] = await Promise.all([
 			new Response(proc.stdout).text(),
@@ -474,7 +495,7 @@ export async function runChainSteps(
 		const step = chain.steps[i];
 		let stepTask = renderStepTask(step.task, task, previous);
 		if (step.rs_guard) {
-			const note = await runGuardStep(chain.name, i + 1, opts.cwd);
+			const note = await runGuardStep(chain.name, i + 1, opts.cwd, opts.signal);
 			if (note) stepTask += `\n\n${note}`;
 		}
 		const r = await runSingleAgent({

@@ -405,14 +405,26 @@ main() {
         if [[ "${profile_rc}" -ne 0 ]]; then
           exit 2
         fi
-        # read_profile prints "kind\tname" rows for mantra/pack/tracker. Only
-        # packs are doctor-relevant; any other kind is intentionally ignored.
+        # read_profile prints "kind\tname" rows for mantra/pack/tracker.
+        # Mantra/tracker paths are launch-required (fail closed, exit 2 —
+        # same message add_named_skill prints), so doctor prefights them;
+        # packs only warn.
         while IFS=$'\t' read -r kind name; do
-          [[ "${kind}" == "pack" ]] || continue
-          if [[ ! -e "${skills_home}/${name}" ]]; then
-            doctor_warn "missing pack ${name} (${skills_home}/${name})"
-            optional=$((optional + 1))
-          fi
+          [[ -z "${kind}" ]] && continue
+          case "${kind}" in
+            mantra|tracker)
+              if [[ ! -e "${skills_home}/${name}" ]]; then
+                printf 'pi-life: missing required %s %s (%s)\n' "${kind}" "${name}" "${skills_home}/${name}" >&2
+                exit 2
+              fi
+              ;;
+            pack)
+              if [[ ! -e "${skills_home}/${name}" ]]; then
+                doctor_warn "missing pack ${name} (${skills_home}/${name})"
+                optional=$((optional + 1))
+              fi
+              ;;
+          esac
         done <<< "${profile_out}"
       fi
 
