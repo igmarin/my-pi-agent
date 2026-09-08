@@ -344,6 +344,10 @@ launch_life() {
   # the existence signal is a separate file check.
   if [[ -f "${PWD}/.pi/capabilities.yaml" ]]; then
     export PI_OVERLAY_EXISTS=1
+  else
+    # File-authoritative: a stale inherited flag must not suppress the
+    # first-launch wizard when the overlay is absent.
+    unset PI_OVERLAY_EXISTS
   fi
 
   # Issue #15: --model/--thinking for the primary session. Profile defaults

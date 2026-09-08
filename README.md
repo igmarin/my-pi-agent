@@ -28,7 +28,7 @@ On the first `pi-life` launch in a target repo — when `.pi/capabilities.yaml` 
 
 ### Rails-repo smoke
 
-`just smoke` ends with `just smoke-rails`: it runs `pi-life --dry-run ruby` from a Rails repo and asserts the ruby pack argv. Pass a repo explicitly (`just smoke-rails ~/path/to/app`), else it auto-discovers a `Gemfile` containing `gem "rails"` under `~/Developer`, else it falls back to a synthetic Rails fixture — never a manual step, never a hard fail.
+`just smoke` ends with `just smoke-rails`: it runs `pi-life --dry-run ruby` from a Rails repo and asserts the ruby pack argv. Pass a repo explicitly (`just smoke-rails ~/path/to/app` — a path without a `Gemfile` fails loudly with exit 1); without an argument it auto-discovers a `Gemfile` containing `gem "rails"` under `~/Developer` and, when nothing is found, falls back to a synthetic Rails fixture — so the default run is never a manual step and never a hard fail.
 
 ```text
 just install

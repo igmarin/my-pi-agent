@@ -111,6 +111,9 @@ function readProfileDefaults(ctx: ExtensionContext): ProfileModelDefaults {
 		const doc = parse(readFileSync(profilePath, "utf8")) as unknown;
 		return extractProfileModelDefaults(doc);
 	} catch (err) {
+		// Missing profile is a normal no-defaults state (e.g. direct `pi -e`
+		// launches); only real parse/schema failures are worth surfacing.
+		if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return {};
 		const message = err instanceof Error ? err.message : String(err);
 		if (ctx.hasUI)
 			ctx.ui.notify(
