@@ -1,0 +1,14 @@
+# Shared default agent chains. Lives may override with
+# profiles/<life>/agents/agent-chain.yaml; a project overrides both with
+# .pi/agents/agent-chain.yaml. {task} = the original request; {previous} = the
+# prior step's final output ("" for the first step).
+chains:
+  plan-build-review:
+    description: Plan, then build, then review.
+    steps:
+      - agent: planner
+        task: "Plan the work for: {task}\n\nDo NOT modify files. Output a numbered step-by-step plan naming the files to change."
+      - agent: builder
+        task: "Implement the plan for: {task}\n\nPrior step output:\n{previous}\n\nWrite clean, minimal code following the codebase patterns. Test your work when possible."
+      - agent: reviewer
+        task: "Review the implementation for: {task}\n\nPrior step output:\n{previous}\n\nFind bugs, security issues, style problems, and improvements. Be concise, use bullet points, cite file:line. Do NOT modify files."

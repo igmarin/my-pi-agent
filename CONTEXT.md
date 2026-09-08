@@ -51,7 +51,7 @@ Optional tool a project may enable in its overlay (graphify, codegraph, serena, 
 _Avoid_: plugin, MCP (MCP is one way to expose a capability)
 
 **Chain**:
-Sequential roles (`plan → build → review`). Primary Pi may still do small solo work.
+Sequential roles (`plan → build → review`) driven by named chains from `agent-chain.yaml` (`/chain`, `/chain-list`, `run_chain`). File precedence: project `.pi/agents/agent-chain.yaml` overrides harness `profiles/<life>/agents/` then shared `profiles/agents/agent-chain.yaml` (default `plan-build-review`). Each step is a child `pi` (`{task}`/`{previous}` templates, fail-fast). Mode `chain` still warns and uses the solo allowlist until wired (#8).
 _Avoid_: pipeline, workflow (those include overnight/unattended systems)
 
 **Subagent**:

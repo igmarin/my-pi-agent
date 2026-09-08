@@ -87,6 +87,25 @@ test("shared profiles/agents used when life dir is empty", () => {
 	expect(reviewer?.body).toBe("SHARED");
 });
 
+test("non-agent YAML in profiles/agents is skipped (agent-chain.yaml coexists)", () => {
+	// Regression for #6: profiles/agents/agent-chain.yaml has a chains: schema,
+	// not an agent schema. It must not surface as an agent named after the file.
+	mkdirSync(join(harness, "profiles/agents"), { recursive: true });
+	writeFileSync(
+		join(harness, "profiles/agents/planner.yaml"),
+		"name: planner\ndescription: shared\nbody: PLANNER\n",
+	);
+	writeFileSync(
+		join(harness, "profiles/agents/agent-chain.yaml"),
+		"chains:\n  plan-build-review:\n    steps:\n      - agent: planner\n",
+	);
+	process.env.MY_PI_AGENT_HOME = harness;
+	process.env.PI_LIFE = "ruby";
+	const agents = collectAgents(cwd, import.meta.url, home);
+	expect(agents.some((a) => a.name === "agent-chain")).toBe(false);
+	expect(agents.find((a) => a.name === "planner")).toBeDefined();
+});
+
 test("invalid PI_LIFE fails closed: no agents, no broad scan", () => {
 	seed();
 	process.env.PI_LIFE = "rails-python";
