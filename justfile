@@ -201,6 +201,34 @@ smoke:
     out="$(cd "${doc_bad}" && PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
     test "${status}" -eq 2
     grep -q 'invalid overlay YAML' <<<"${out}"
+    # (j3) doctor <life> with a missing required tracker path -> exit 2.
+    doc_notrk_home="$(mktemp -d)"
+    for name in i-have-adhd ponytail ponytail-review deslop clarify requirements-clarifier tdd herdr; do
+      cp -r "${tmp}/${name}" "${doc_notrk_home}/${name}"
+    done
+    status=0
+    out="$(cd "${doc_life_cwd}" && PI_SKILLS_HOME="${doc_notrk_home}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 2
+    grep -q 'missing required tracker' <<<"${out}"
+    # (j4) tracker: none and omitted tracker never preflight-fail: read_profile
+    # emits no tracker row for either, so doctor stays exit 0. Pins the
+    # sentinel contract against regressions in the doctor loop.
+    doc_none_home="$(mktemp -d)"
+    mkdir -p "${doc_none_home}/profiles" "${doc_none_home}/i-have-adhd"
+    printf '%s\n' '# i-have-adhd' >"${doc_none_home}/i-have-adhd/SKILL.md"
+    printf '%s\n' 'life: ruby' 'tracker: none' 'packs: []' 'mantra: [i-have-adhd]' >"${doc_none_home}/profiles/ruby.yaml"
+    status=0
+    out="$(cd "${doc_life_cwd}" && MY_PI_AGENT_HOME="${doc_none_home}" PI_SKILLS_HOME="${doc_none_home}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 0
+    grep -q 'required: ok' <<<"${out}"
+    doc_omit_home="$(mktemp -d)"
+    mkdir -p "${doc_omit_home}/profiles" "${doc_omit_home}/i-have-adhd"
+    printf '%s\n' '# i-have-adhd' >"${doc_omit_home}/i-have-adhd/SKILL.md"
+    printf '%s\n' 'life: ruby' 'packs: []' 'mantra: [i-have-adhd]' >"${doc_omit_home}/profiles/ruby.yaml"
+    status=0
+    out="$(cd "${doc_life_cwd}" && MY_PI_AGENT_HOME="${doc_omit_home}" PI_SKILLS_HOME="${doc_omit_home}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 0
+    grep -q 'required: ok' <<<"${out}"
     # (l) doctor <life> with a malformed profile -> exit 2 (not swallowed).
     doc_badprof_home="$(mktemp -d)"
     mkdir -p "${doc_badprof_home}/profiles"
@@ -236,7 +264,7 @@ smoke:
     test "${status}" -eq 0
     grep -q 'warning: herdr not on PATH' <<<"${out}"
     grep -q 'optional:' <<<"${out}"
-    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_packs_home}" "${doc_nomantra_home}" "${doc_bad}" "${doc_badprof_home}" "${doc_badprof_cwd}" "${doc_nobun_home}" "${doc_nobun_cwd}" "${doc_nohome}" "${doc_noh_cwd}"
+    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_packs_home}" "${doc_nomantra_home}" "${doc_notrk_home}" "${doc_none_home}" "${doc_omit_home}" "${doc_bad}" "${doc_badprof_home}" "${doc_badprof_cwd}" "${doc_nobun_home}" "${doc_nobun_cwd}" "${doc_nohome}" "${doc_noh_cwd}"
     status=0
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2

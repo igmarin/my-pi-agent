@@ -28,13 +28,7 @@ just install
 
 ## Herdr (host)
 
-Herdr is the host for parallel work: workspaces, panes, `herdr worktree`, and `herdr agent start --kind pi`. Herdr launches `pi-life` itself; the harness never wraps Herdr in a Pi extension.
-
-```text
-herdr pane split --current --direction right --cwd "$PWD" --no-focus
-herdr agent start reviewer --kind pi --pane w1:p2 -- pi-life ruby
-herdr agent prompt reviewer "Review the current diff." --wait
-```
+Herdr is the host for parallel work: workspaces, panes, `herdr worktree`, and `herdr agent start --kind pi`. Herdr launches `pi-life` itself; the harness never wraps Herdr in a Pi extension. Example: `herdr agent start reviewer --kind pi -- pi-life ruby`.
 
 The `herdr` skill is on the mantra allowlist of every life. It no-ops unless `HERDR_ENV=1`, so a plain terminal is unaffected. `pi-life doctor` warns (never fails) when `herdr` is not on PATH. Prefer `herdr worktree` when already inside Herdr; `stacked-pr-worktree-workflow` stays for gh-stack PR topology.
 
