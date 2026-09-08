@@ -6,7 +6,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: pi-life [--dry-run] <life> [solo|chain|team]
-       pi-life doctor
+       pi-life doctor [life]
        pi-life doctor-probe
        pi-life --dump-overlay <cwd>
        pi-life --help
@@ -17,12 +17,19 @@ Aliases: phoenix → elixir, rails → ruby
   solo   daily stack (default)
   chain  plan-build-review
   team   dispatcher
-  doctor this machine + cwd overlay
+  doctor this machine + cwd overlay (optional life checks its packs)
 
 Harness root: MY_PI_AGENT_HOME or the directory that contains this script.
 Skills root: PI_SKILLS_HOME or ~/.agents/skills.
 Run from the target repo. Does not require a justfile there.
 EOF
+}
+
+# Issue #13: prefix each line of $1 with 'warning: ' on stderr (matches the
+# rest of pi-life, which writes diagnostics to stderr). Multi-line input is
+# prefixed line by line.
+doctor_warn() {
+  printf '%s\n' "$1" | sed 's/^/warning: /' >&2
 }
 
 # Issue #18: required core.excludesfile patterns
@@ -336,15 +343,94 @@ main() {
 
   case "${1}" in
     doctor)
-      if [[ $# -ne 1 ]]; then
-        printf 'pi-life: unexpected argument: %s\n' "${2}" >&2
+      # Issue #13: doctor checks the launcher + optional packs. Exit 2 if a
+      # required piece (pi, bun) is missing or the overlay fails to parse;
+      # optional gaps (packs, just, rs-guard, excludesfile) warn, exit 0.
+      if [[ $# -gt 2 ]]; then
+        printf 'pi-life: unexpected argument: %s\n' "${3}" >&2
         usage >&2
         exit 2
       fi
+      local doc_arg="${2:-}"
+      local doc_life=""
+      if [[ -n "${doc_arg}" ]]; then
+        local doc_status=0
+        doc_life="$(canonical_life "${doc_arg}")" || doc_status=$?
+        if [[ "${doc_status}" -eq 2 ]]; then
+          exit 2
+        fi
+        if [[ "${doc_status}" -ne 0 ]]; then
+          printf 'pi-life: unknown life %s\n' "${doc_arg}" >&2
+          usage >&2
+          exit 2
+        fi
+        printf 'life: %s\n' "${doc_life}"
+      fi
       printf 'harness: %s\n' "${root}"
       printf 'cwd: %s\n' "${PWD}"
-      printf 'doctor: not implemented yet (issue #13)\n' >&2
-      exit 2
+
+      # Check required launcher pieces BEFORE read_overlay: it spawns bun, so
+      # a missing bun must surface as a clean "required: FAIL missing: bun",
+      # not as an opaque failure inside the overlay read.
+      local missing=()
+      command -v pi >/dev/null 2>&1 || missing+=("pi")
+      command -v bun >/dev/null 2>&1 || missing+=("bun")
+      if [[ ${#missing[@]} -gt 0 ]]; then
+        printf 'required: FAIL missing: %s\n' "${missing[*]}"
+        exit 2
+      fi
+      printf 'required: ok\n'
+
+      local overlay
+      overlay="$(read_overlay "${PWD}")" || exit 2
+      printf 'overlay: %s\n' "${overlay}"
+
+      local optional=0
+      local skills_home="${PI_SKILLS_HOME:-${HOME}/.agents/skills}"
+      if [[ -n "${doc_life}" ]]; then
+        local doc_profile="${root}/profiles/${doc_life}.yaml"
+        if [[ ! -f "${doc_profile}" ]]; then
+          printf 'pi-life: missing profile %s\n' "${doc_profile}" >&2
+          exit 2
+        fi
+        local kind name
+        local profile_out profile_rc=0
+        profile_out="$(read_profile "${doc_profile}" "${root}")" || profile_rc=$?
+        if [[ "${profile_rc}" -ne 0 ]]; then
+          exit 2
+        fi
+        # read_profile prints "kind\tname" rows for mantra/pack/tracker. Only
+        # packs are doctor-relevant; any other kind is intentionally ignored.
+        while IFS=$'\t' read -r kind name; do
+          [[ "${kind}" == "pack" ]] || continue
+          if [[ ! -e "${skills_home}/${name}" ]]; then
+            doctor_warn "missing pack ${name} (${skills_home}/${name})"
+            optional=$((optional + 1))
+          fi
+        done <<< "${profile_out}"
+      fi
+
+      if ! command -v just >/dev/null 2>&1; then
+        doctor_warn "just not on PATH"
+        optional=$((optional + 1))
+      fi
+      if ! command -v rs-guard >/dev/null 2>&1; then
+        doctor_warn "rs-guard not on PATH"
+        optional=$((optional + 1))
+      fi
+      local ex_rc=0
+      local ex_out
+      ex_out="$(check_excludesfile 2>&1)" || ex_rc=$?
+      if [[ "${ex_rc}" -ne 0 ]]; then
+        doctor_warn "${ex_out}"
+        optional=$((optional + 1))
+      fi
+      if [[ "${optional}" -eq 0 ]]; then
+        printf 'optional: ok\n'
+      else
+        printf 'optional: %s warning(s)\n' "${optional}"
+      fi
+      exit 0
       ;;
     doctor-probe)
       if [[ $# -ne 1 ]]; then

@@ -126,9 +126,6 @@ smoke:
     status=0
     "${bin}" ecto >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
-    status=0
-    "${bin}" doctor >/dev/null 2>&1 || status=$?
-    test "${status}" -eq 2
     # Issue #18: doctor-probe exercises check_excludesfile in isolation.
     # Read-only: writes to a temp HOME/cwd, never touches the real ~/.gitignore_global.
     probe_home="$(mktemp -d)"
@@ -156,6 +153,59 @@ smoke:
     test "${status}" -eq 1
     [[ "${out}" == *"missing patterns:"* ]]
     rm -rf "${probe_home}" "${probe_cwd}"
+    # Issue #13: doctor. (i) all required present, exit 0 + structured report.
+    # Uses PI_SKILLS_HOME="${tmp}" (the stub-skills dir from the top of smoke:
+    # ruby-core-skills etc all exist there, so (i) has zero pack warnings).
+    doc_cwd="$(mktemp -d)"
+    status=0
+    out="$(cd "${doc_cwd}" && PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
+    test "${status}" -eq 0
+    grep -q "harness: ${root}" <<<"${out}"
+    grep -q "cwd: ${doc_cwd}" <<<"${out}"
+    grep -q 'overlay:' <<<"${out}"
+    grep -q 'required: ok' <<<"${out}"
+    grep -q 'optional:' <<<"${out}"
+    # (j) doctor <life> with packs missing -> exit 0, warnings named. Uses a
+    # DEDICATED EMPTY skills home (not ${tmp}, which stubs every ruby pack) so
+    # the missing-pack warning genuinely fires.
+    doc_life_cwd="$(mktemp -d)"
+    doc_packs_home="$(mktemp -d)"
+    status=0
+    out="$(cd "${doc_life_cwd}" && PI_SKILLS_HOME="${doc_packs_home}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 0
+    grep -q 'life: ruby' <<<"${out}"
+    grep -q 'warning: missing pack ruby-core-skills' <<<"${out}"
+    # (k) doctor with overlay parse failure -> exit 2.
+    doc_bad="$(mktemp -d)"
+    mkdir -p "${doc_bad}/.pi"
+    printf ':\n  [\n' >"${doc_bad}/.pi/capabilities.yaml"
+    status=0
+    out="$(cd "${doc_bad}" && PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
+    test "${status}" -eq 2
+    grep -q 'invalid overlay YAML' <<<"${out}"
+    # (l) doctor <life> with a malformed profile -> exit 2 (not swallowed).
+    doc_badprof_home="$(mktemp -d)"
+    mkdir -p "${doc_badprof_home}/profiles"
+    printf '%s\n' 'life: ruby' 'packs: {bad: true}' >"${doc_badprof_home}/profiles/ruby.yaml"
+    doc_badprof_cwd="$(mktemp -d)"
+    status=0
+    out="$(cd "${doc_badprof_cwd}" && MY_PI_AGENT_HOME="${doc_badprof_home}" PI_SKILLS_HOME="${tmp}" "${bin}" doctor ruby 2>&1)" || status=$?
+    test "${status}" -eq 2
+    grep -q 'must be a string or list of strings' <<<"${out}"
+    # (m) doctor with an existing overlay but bun absent from PATH -> clean
+    # "required: FAIL missing: bun" (checked before read_overlay spawns bun).
+    doc_nobun_home="$(mktemp -d)"
+    mkdir -p "${doc_nobun_home}/bin"
+    printf '%s\n' '#!/bin/bash' 'exit 0' >"${doc_nobun_home}/bin/pi"
+    chmod +x "${doc_nobun_home}/bin/pi"
+    doc_nobun_cwd="$(mktemp -d)"
+    mkdir -p "${doc_nobun_cwd}/.pi"
+    printf '%s\n' 'graphify: true' >"${doc_nobun_cwd}/.pi/capabilities.yaml"
+    status=0
+    out="$(cd "${doc_nobun_cwd}" && PATH="${doc_nobun_home}/bin:/bin:/usr/bin" MY_PI_AGENT_HOME="${doc_badprof_home}" PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
+    test "${status}" -eq 2
+    grep -q 'required: FAIL missing: bun' <<<"${out}"
+    rm -rf "${doc_cwd}" "${doc_life_cwd}" "${doc_packs_home}" "${doc_bad}" "${doc_badprof_home}" "${doc_badprof_cwd}" "${doc_nobun_home}" "${doc_nobun_cwd}"
     status=0
     "${bin}" ruby team typo >/dev/null 2>&1 || status=$?
     test "${status}" -eq 2
