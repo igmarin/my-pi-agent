@@ -306,6 +306,11 @@ launch_life() {
   if [[ "${mode}" == "team" ]]; then
     pi_args+=(-e "${root}/extensions/agent-team.ts")
   fi
+  # Chain mode loads the /chain + /chain-list commands and the run_chain tool.
+  # Mutually exclusive with team (agent-team.ts) and tilldone (status-line.ts).
+  if [[ "${mode}" == "chain" ]]; then
+    pi_args+=(-e "${root}/extensions/agent-chain.ts")
+  fi
 
   local rows
   rows="$(read_profile "${profile}" "${root}")" || exit 2
@@ -561,11 +566,7 @@ main() {
 
   local mode="${2:-solo}"
   case "${mode}" in
-    solo) ;;
-    team) ;;
-    chain)
-      printf 'pi-life: chain is accepted but not wired yet; using solo skill allowlist (load extensions/agent-chain.ts manually for /chain)\n' >&2
-      ;;
+    solo|team|chain) ;;
     *)
       printf 'pi-life: unknown mode %s\n' "${mode}" >&2
       usage >&2
