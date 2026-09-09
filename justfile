@@ -62,6 +62,12 @@ smoke:
     # Issue #8: team mode loads the dispatcher-only primary.
     echo "${rust_team_out}" | grep -q -- "-e ${root}/extensions/agent-team.ts"
     ! grep -q -- "agent-team.ts" <<<"${rust_solo_out}"
+    # Chain mode loads the /chain commands + run_chain tool, not the
+    # status line or the team dispatcher.
+    echo "${rust_chain_out}" | grep -q -- "-e ${root}/extensions/agent-chain.ts"
+    ! grep -q -- "agent-chain.ts" <<<"${rust_solo_out}"
+    ! grep -q -- "agent-chain.ts" <<<"${rust_team_out}"
+    ! grep -q -- "agent-team.ts" <<<"${rust_chain_out}"
 
     echo "${elixir_out}" | grep -q -- "--skill ${tmp}/elixir-phoenix-skills"
     ! grep -q -- "github-issue" <<<"${elixir_out}"
@@ -254,14 +260,26 @@ smoke:
     grep -q 'required: FAIL missing: bun' <<<"${out}"
     # (m2) Issue #19: with required pieces satisfied but herdr off PATH,
     # doctor still exits 0 and warns (optional gap, never a failure).
+    # Sandbox PATH so ONLY the stub bin is visible: pi+bun stubs plus symlinks
+    # for the coreutils doctor/pi-life need. No system dirs on PATH, so the
+    # real /bin/herdr and /usr/bin/just on this machine cannot leak into
+    # `command -v` probing — just/rs-guard/herdr are simply absent.
     doc_nohome="$(mktemp -d)"
     mkdir -p "${doc_nohome}/bin"
     printf '%s\n' '#!/bin/bash' 'exit 0' >"${doc_nohome}/bin/pi"
     printf '%s\n' '#!/bin/bash' 'exit 0' >"${doc_nohome}/bin/bun"
     chmod +x "${doc_nohome}/bin/pi" "${doc_nohome}/bin/bun"
+    for tool in env bash sh git sed grep mktemp rm mkdir head cat chmod dirname readlink pwd; do
+      for dir in /bin /usr/bin; do
+        if [[ -x "${dir}/${tool}" ]]; then
+          ln -sf "${dir}/${tool}" "${doc_nohome}/bin/${tool}"
+          break
+        fi
+      done
+    done
     doc_noh_cwd="$(mktemp -d)"
     status=0
-    out="$(cd "${doc_noh_cwd}" && PATH="${doc_nohome}/bin:/bin:/usr/bin" PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
+    out="$(cd "${doc_noh_cwd}" && PATH="${doc_nohome}/bin" PI_SKILLS_HOME="${tmp}" "${bin}" doctor 2>&1)" || status=$?
     test "${status}" -eq 0
     grep -q 'warning: herdr not on PATH' <<<"${out}"
     grep -q 'optional:' <<<"${out}"

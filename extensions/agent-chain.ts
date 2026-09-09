@@ -5,9 +5,8 @@
  *
  * This file exports `default function (pi: ExtensionAPI)` which registers the
  * `/chain` and `/chain-list` commands and the `run_chain` tool. Loaded via
- * `pi -e extensions/agent-chain.ts`. Not yet wired into `pi-life` mode dispatch
- * (mode `chain` still warns and uses the solo allowlist); the extension is
- * standalone so the primary session can drive a chain manually.
+ * `pi-life <life> chain` (mutually exclusive with team and status-line by
+ * launcher construction).
  *
  * ## Chain discovery
  *

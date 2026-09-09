@@ -19,7 +19,7 @@ Named launch config for a life: extensions, skill allowlist, tracker, provider c
 _Avoid_: theme, preset; TOML for harness config
 
 **Solo**:
-Default launch mode. The single primary Pi session with the full per-life toolset, the solo-only status-line extension, and the solo allowlist. The other modes do not load the status line. `team` keeps the solo allowlist plus the dispatcher extension; `chain` is accepted but not wired (solo allowlist, warning) — run `/chain` from a session that loads `agent-chain.ts`.
+Default launch mode. The single primary Pi session with the full per-life toolset, the solo-only status-line extension, and the solo allowlist. The other modes do not load the status line. `team` keeps the solo allowlist plus the dispatcher extension; `chain` keeps the solo allowlist plus the chain extension (`/chain`, `/chain-list`, `run_chain`).
 _Avoid_: single, default (ambiguous; "solo" names the harness mode specifically)
 
 **Agent (persona)**:
@@ -59,7 +59,7 @@ Chain/team seat a model or thinking level can be assigned to: `solo` (primary se
 _Avoid_: agent (a role is a seat, an agent is a persona file)
 
 **Chain**:
-Sequential roles (`plan → build → review`) driven by named chains from `agent-chain.yaml` (`/chain`, `/chain-list`, `run_chain`). File precedence: project `.pi/agents/agent-chain.yaml` overrides harness `profiles/<life>/agents/` then shared `profiles/agents/agent-chain.yaml` (default `plan-build-review`; optional `research-plan-build-review` prepends a researcher step, issue #12). Each step is a child `pi` (`{task}`/`{previous}` templates, fail-fast). A step may set `rs_guard: true` (issue #7, chain-level): when the overlay enables `rs-guard`, the chain shells out to `rs-guard --diff-file` on `git diff HEAD` before the agent runs and feeds the findings into the step; overlay off or empty diff = skills-only; overlay on + missing binary or a non-zero rs-guard exit fails the chain closed. Mode `chain` still warns and uses the solo allowlist until wired (#8).
+Sequential roles (`plan → build → review`) driven by named chains from `agent-chain.yaml` (`/chain`, `/chain-list`, `run_chain`). File precedence: project `.pi/agents/agent-chain.yaml` overrides harness `profiles/<life>/agents/` then shared `profiles/agents/agent-chain.yaml` (default `plan-build-review`; optional `research-plan-build-review` prepends a researcher step, issue #12). Each step is a child `pi` (`{task}`/`{previous}` templates, fail-fast). A step may set `rs_guard: true` (issue #7, chain-level): when the overlay enables `rs-guard`, the chain shells out to `rs-guard --diff-file` on `git diff HEAD` before the agent runs and feeds the findings into the step; overlay off or empty diff = skills-only; overlay on + missing binary or a non-zero rs-guard exit fails the chain closed. Launched via `pi-life <life> chain`, which loads the chain extension on top of the solo allowlist (#8).
 _Avoid_: pipeline, workflow (those include overnight/unattended systems)
 
 **Subagent**:
