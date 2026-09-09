@@ -5,6 +5,7 @@ This repo is the **pi-life** harness. Host is Pi. Run `pi-life` from the **targe
 Pointers (load when the branch fires):
 
 - `CONTEXT.md` — glossary (life, profile, mantra, overlay, tracker, chain, team)
+- `docs/how-to.md` — task-oriented usage guide (install, launch, overlay, chains, teams, troubleshooting)
 - `README.md` — launch, install, rs-guard hook/CI
 - `.github/review-prompt.md` — rs-guard axes, severity, verdict metadata
 
