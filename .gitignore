@@ -18,3 +18,4 @@ graphify-out/
 review-result.txt
 rs-guard-metrics.json
 .rs-guard/cache/
+.kilo/
