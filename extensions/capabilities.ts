@@ -339,15 +339,14 @@ export function deserializeOverlayEnv(payload: string): Overlay {
 			})
 		: [];
 	const rawTracker = doc.trackerSkill;
-	const trackerSkill =
-		rawTracker == null
-			? null
-			: typeof rawTracker === "string"
-				? rawTracker
-				: null;
-	if (rawTracker != null && typeof rawTracker !== "string") {
+	let trackerSkill: string | null;
+	if (rawTracker == null) {
+		trackerSkill = null;
+	} else if (typeof rawTracker === "string" && rawTracker) {
+		trackerSkill = rawTracker;
+	} else {
 		throw new OverlayParseError(
-			"PI_OVERLAY: trackerSkill must be a string or null",
+			"PI_OVERLAY: trackerSkill must be a non-empty string or null",
 		);
 	}
 	const models = asRoleMap(doc.models, "models", "PI_OVERLAY");
