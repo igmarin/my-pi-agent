@@ -27,8 +27,12 @@ YAML under `profiles/<life>/agents/` or shared `profiles/agents/`, then cwd `.pi
 _Avoid_: flattening pack playbooks into these files
 
 **Project overlay**:
-File in the target repo (`.pi/capabilities.yaml`) that turns capabilities on or off. Default all off; missing file ≡ all off. `bin/pi-life` parses the overlay (strict, fail closed on bad YAML) and exports the result as `PI_OVERLAY` for `extensions/capabilities.ts`, which appends a `<capabilities>` block to the system prompt at `before_agent_start` when anything is on. When all are off, the prompt is left alone — the model never sees a capability the project has not enabled. The overlay's `extra_skills` and `tracker.skill` are also turned into `--skill` arguments in the launcher so the model can actually use them, not just see them in the prompt. `bin/pi-life` resolves the script's real location via `BASH_SOURCE[0]` for the import, independent of any `MY_PI_AGENT_HOME` override.
+File in the target repo (`.pi/capabilities.yaml`) that turns capabilities on or off. Default all off; missing file ≡ all off. `bin/pi-life` parses the overlay (strict, fail closed on bad YAML) and exports the result as `PI_OVERLAY` for `extensions/capabilities.ts`, which appends a `<capabilities>` block to the system prompt at `before_agent_start` when anything is on. When all are off, the prompt is left alone — the model never sees a capability the project has not enabled. The overlay's `extra_skills` and `tracker.skill` are also turned into `--skill` arguments in the launcher so the model can actually use them, not just see them in the prompt. `bin/pi-life` resolves the script's real location via `BASH_SOURCE[0]` for the import, independent of any `MY_PI_AGENT_HOME` override. The overlay also carries optional `models:`/`thinking:` role maps (issue #15) — see Boot Config.
 _Avoid_: settings, config (too broad)
+
+**Boot Config**:
+First-launch wizard (issue #15): when `.pi/capabilities.yaml` does not exist, `extensions/boot-config.ts` (loaded before `capabilities.ts` in the `-e` chain) walks the user through the six capability toggles and optional per-role model/thinking defaults (roles: solo, planner, builder, reviewer, researcher), then writes the overlay only on explicit confirmation. Skipped entirely when the file exists (`PI_OVERLAY_EXISTS=1`, exported by the launcher) or when UI is unavailable. On save it updates `PI_OVERLAY` in-process so `capabilities.ts` reads the fresh overlay and applies the solo model/thinking immediately via `pi.setModel`/`pi.setThinkingLevel`. On later launches the launcher reads the overlay's `models.solo`/`thinking.solo` into `--model`/`--thinking`; profile YAML may carry optional `models:`/`thinking:` defaults that the overlay overrides.
+_Avoid_: setup command (it is a launch-time wizard, not a CLI)
 
 **Machine**:
 Local facts that never go in git: keys, hardware, tokengate vs personal, rapid-mlx model.
@@ -49,6 +53,10 @@ _Avoid_: system prompt (the prompt is how mantra is injected)
 **Capability**:
 Optional tool a project may enable in its overlay (graphify, codegraph, serena, rs-guard, obscura, playwright). Default off. The overlay's `extra_skills` and `tracker.skill` are also capabilities: paths to local skill directories and to a machine-local tracker skill, respectively. The overlay may not invent a fourth life.
 _Avoid_: plugin, MCP (MCP is one way to expose a capability)
+
+**Role**:
+Chain/team seat a model or thinking level can be assigned to: `solo` (primary session), `planner`, `builder`, `reviewer`, `researcher`. Configured under optional `models:`/`thinking:` keys in `profiles/<life>.yaml` (harness defaults) and `.pi/capabilities.yaml` (per-project override). For 0.1.0 only the `solo` role drives `--model`/`--thinking`; per-role child dispatch is not wired.
+_Avoid_: agent (a role is a seat, an agent is a persona file)
 
 **Chain**:
 Sequential roles (`plan → build → review`) driven by named chains from `agent-chain.yaml` (`/chain`, `/chain-list`, `run_chain`). File precedence: project `.pi/agents/agent-chain.yaml` overrides harness `profiles/<life>/agents/` then shared `profiles/agents/agent-chain.yaml` (default `plan-build-review`; optional `research-plan-build-review` prepends a researcher step, issue #12). Each step is a child `pi` (`{task}`/`{previous}` templates, fail-fast). A step may set `rs_guard: true` (issue #7, chain-level): when the overlay enables `rs-guard`, the chain shells out to `rs-guard --diff-file` on `git diff HEAD` before the agent runs and feeds the findings into the step; overlay off or empty diff = skills-only; overlay on + missing binary or a non-zero rs-guard exit fails the chain closed. Mode `chain` still warns and uses the solo allowlist until wired (#8).

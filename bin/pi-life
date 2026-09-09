@@ -95,9 +95,16 @@ canonical_life() {
 # One Bun parse. Prints "kind<TAB>name" rows. Exit 2 on invalid YAML.
 read_profile() {
   local file="$1" root="$2"
+  # capabilities.ts is resolved from the script's real location (not $root):
+  # MY_PI_AGENT_HOME overrides make root point at custom profile scaffolds
+  # that have no extensions/ directory. Same rule as read_overlay.
+  local caps_module
+  caps_module="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
   (
     cd "${root}"
-    bun -e '
+    # Role-map validation is shared with capabilities.ts (asRoleMap/asThinkingMap)
+    # so profiles, overlays, and the env payload enforce one contract.
+    CAPS_MODULE="${caps_module}" bun -e '
       import { parse } from "yaml";
       import { readFileSync } from "node:fs";
       let doc;
@@ -129,6 +136,24 @@ read_profile() {
       for (const n of list("packs")) console.log("pack\t" + n);
       const tracker = list("tracker")[0];
       if (tracker && tracker !== "none") console.log("tracker\t" + tracker);
+      // Issue #15: optional per-role model/thinking defaults. Row format is
+      // "kind\trole\tvalue" so the two-column skill rows stay unchanged.
+      try {
+        const { asRoleMap, asThinkingMap } = await import(process.env.CAPS_MODULE);
+        const maps = [
+          ["models", asRoleMap(doc.models, "models", "pi-life: invalid profile YAML")],
+          ["thinking", asThinkingMap(doc.thinking, "thinking", "pi-life: invalid profile YAML")],
+        ];
+        for (const [k, map] of maps) {
+          if (!map) continue;
+          for (const [role, val] of Object.entries(map)) {
+            console.log(k + "\t" + role + "\t" + val);
+          }
+        }
+      } catch (e) {
+        console.error(e instanceof Error ? e.message : String(e));
+        process.exit(2);
+      }
     ' "${file}"
   )
 }
@@ -227,11 +252,11 @@ add_overlay_skill() {
   printf 'pi-life: warning: missing overlay %s (%s)\n' "${kind}" "${path}" >&2
 }
 
-# Issue #11: list the overlay skill paths (extra_skills + tracker.skill) as
-# absolute paths, one per line on stdout. Empty output = no overlay skills.
-# Reads PI_OVERLAY from the environment (set by launch_life). Uses bun + the
-# capabilities module to deserialize; resolves relative paths against $1.
-overlay_skill_paths() {
+# Issue #11 + #15: read PI_OVERLAY (set by launch_life) once and print both
+# the overlay skill paths and the solo role's model/thinking as
+# "kind\tvalue" rows. One bun spawn for all overlay-derived launch args.
+# Empty output = nothing configured. Non-zero exit fails the caller closed.
+overlay_extras() {
   local overlay_cwd="$1"
   local script
   script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
@@ -244,8 +269,12 @@ overlay_skill_paths() {
       const overlay = deserializeOverlayEnv(process.env.PI_OVERLAY || "");
       const cwd = process.env.OVERLAY_CWD;
       const resolve = (p) => isAbsolute(p) ? p : join(cwd, p);
-      for (const s of overlay.extraSkills) process.stdout.write(resolve(s) + "\n");
-      if (overlay.trackerSkill) process.stdout.write(resolve(overlay.trackerSkill) + "\n");
+      for (const s of overlay.extraSkills) process.stdout.write("skill\t" + resolve(s) + "\n");
+      if (overlay.trackerSkill) process.stdout.write("skill\t" + resolve(overlay.trackerSkill) + "\n");
+      const soloModel = overlay.models?.solo;
+      const soloThinking = overlay.thinking?.solo;
+      if (soloModel) process.stdout.write("model\t" + soloModel + "\n");
+      if (soloThinking) process.stdout.write("thinking\t" + soloThinking + "\n");
     '
   )
 }
@@ -265,7 +294,9 @@ launch_life() {
 
   local skills_home="${PI_SKILLS_HOME:-${HOME}/.agents/skills}"
   skill_names=""
-  pi_args=(-e "${root}/extensions/damage-control-continue.ts" -e "${root}/extensions/capabilities.ts" -e "${root}/extensions/clarify-gate.ts" --no-skills)
+  # Issue #15: boot-config runs BEFORE capabilities so its first-launch TUI
+  # can update PI_OVERLAY in the same session (handler order = -e order).
+  pi_args=(-e "${root}/extensions/damage-control-continue.ts" -e "${root}/extensions/boot-config.ts" -e "${root}/extensions/capabilities.ts" -e "${root}/extensions/clarify-gate.ts" --no-skills)
   if [[ "${mode}" == "solo" ]]; then
     pi_args+=(-e "${root}/extensions/status-line.ts")
   fi
@@ -278,13 +309,16 @@ launch_life() {
 
   local rows
   rows="$(read_profile "${profile}" "${root}")" || exit 2
-  local kind name
-  while IFS=$'\t' read -r kind name; do
+  local kind name value
+  local profile_solo_model="" profile_solo_thinking=""
+  while IFS=$'\t' read -r kind name value; do
     [[ -z "${kind}" ]] && continue
     case "${kind}" in
       mantra) add_named_skill 1 mantra "${name}" "${skills_home}" ;;
       pack) add_named_skill 0 pack "${name}" "${skills_home}" ;;
       tracker) add_named_skill 1 tracker "${name}" "${skills_home}" ;;
+      models) [[ "${name}" == "solo" && -n "${value}" ]] && profile_solo_model="${value}" ;;
+      thinking) [[ "${name}" == "solo" && -n "${value}" ]] && profile_solo_thinking="${value}" ;;
     esac
   done <<<"${rows}"
 
@@ -296,14 +330,42 @@ launch_life() {
   export MY_PI_AGENT_HOME="${root}"
   export PI_LIFE="${life}"
 
+  # Issue #15: tell the boot-config TUI whether the overlay file exists.
+  # read_overlay's fast path cannot distinguish "missing" from "all off", so
+  # the existence signal is a separate file check.
+  if [[ -f "${PWD}/.pi/capabilities.yaml" ]]; then
+    export PI_OVERLAY_EXISTS=1
+  else
+    # File-authoritative: a stale inherited flag must not suppress the
+    # first-launch wizard when the overlay is absent.
+    unset PI_OVERLAY_EXISTS
+  fi
+
+  # Issue #15: --model/--thinking for the primary session. Profile defaults
+  # apply when set; an existing overlay's solo role overrides the profile.
   # Issue #11: overlay-defined skills (extra_skills + tracker.skill) become
   # --skill arguments so the model can actually use them, not just see them
   # in the prompt. Paths are resolved relative to $PWD; missing paths warn
   # (per-repo overlay is a per-project opt-in, not a fail-closed requirement).
-  while IFS= read -r skill_path; do
-    [[ -z "${skill_path}" ]] && continue
-    add_overlay_skill overlay "${skill_path}"
-  done < <(overlay_skill_paths "${PWD}")
+  # One captured overlay_extras call serves all three: the command substitution
+  # (not a process substitution) is what makes a failed bun spawn fail the
+  # launch closed instead of silently dropping overlay-derived args.
+  local solo_model="${profile_solo_model}" solo_thinking="${profile_solo_thinking}"
+  local extras=""
+  if [[ "${PI_OVERLAY_EXISTS:-}" == "1" ]]; then
+    extras="$(overlay_extras "${PWD}")" || exit 2
+  fi
+  local extras_kind extras_value
+  while IFS=$'\t' read -r extras_kind extras_value; do
+    [[ -z "${extras_kind}" ]] && continue
+    case "${extras_kind}" in
+      skill) add_overlay_skill overlay "${extras_value}" ;;
+      model) solo_model="${extras_value}" ;;
+      thinking) solo_thinking="${extras_value}" ;;
+    esac
+  done <<<"${extras}"
+  [[ -n "${solo_model}" ]] && pi_args+=(--model "${solo_model}")
+  [[ -n "${solo_thinking}" ]] && pi_args+=(--thinking "${solo_thinking}")
 
   if [[ "${dry_run}" -eq 1 ]]; then
     printf 'pi'
