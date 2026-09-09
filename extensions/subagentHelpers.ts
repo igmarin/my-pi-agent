@@ -13,6 +13,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { overlayFromEnv } from "./capabilities.ts";
 import type { AgentDef } from "./agentScan.ts";
 
 export const MAX_PARALLEL_TASKS = 8;
@@ -326,6 +327,27 @@ export interface RunOpts {
 	dispatchThinkingLevel?: string;
 }
 
+/**
+ * Per-role child dispatch (follow-up to #15): chain steps, team dispatch, and
+ * the subagent tool spawn children through `runSingleAgent`; the child's
+ * model/thinking resolve from PI_OVERLAY keyed on the child's agent name
+ * (planner, builder, reviewer, researcher — the same roles the overlay's
+ * models:/thinking: maps configure), falling back to the caller-provided
+ * primary values (ctx.model / ctx.thinkingLevel) when the agent has no role
+ * entry. A malformed PI_OVERLAY also falls back — the launcher wrote it, and
+ * capabilities.ts surfaces parse errors at prompt time.
+ */
+export function dispatchOpts(opts: RunOpts): {
+	dispatchModel?: string;
+	dispatchThinkingLevel?: string;
+} {
+	const overlay = overlayFromEnv();
+	return {
+		dispatchModel: overlay?.models?.[opts.agentName] ?? opts.dispatchModel,
+		dispatchThinkingLevel: overlay?.thinking?.[opts.agentName] ?? opts.dispatchThinkingLevel,
+	};
+}
+
 export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 	const agent = opts.agents.find((a) => a.name === opts.agentName);
 	if (!agent) {
@@ -342,12 +364,13 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 		};
 	}
 
+	const { dispatchModel, dispatchThinkingLevel } = dispatchOpts(opts);
 	const argv = buildChildArgv(opts.harnessRoot, {
 		task: opts.task,
 		agentSystemPrompt: agent.body,
 		agentTools: agent.tools,
-		dispatchModel: opts.dispatchModel,
-		dispatchThinkingLevel: opts.dispatchThinkingLevel,
+		dispatchModel,
+		dispatchThinkingLevel,
 	});
 	const result: SingleResult = {
 		agent: opts.agentName,

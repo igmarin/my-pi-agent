@@ -16,6 +16,7 @@ import {
 	CAPABILITY_KEYS,
 	deserializeOverlayEnv,
 	EMPTY_OVERLAY,
+	overlayFromEnv,
 	OverlayParseError,
 	parseOverlayDoc,
 	serializeOverlayEnv,
@@ -298,5 +299,49 @@ describe("serializeOverlayEnv / deserializeOverlayEnv", () => {
 				/trackerSkill must be a non-empty string or null/,
 			);
 		}
+	});
+});
+
+describe("overlayFromEnv", () => {
+	let saved: string | undefined;
+	function withEnv(value: string | undefined, fn: () => void): void {
+		saved = process.env.PI_OVERLAY;
+		if (value === undefined) delete process.env.PI_OVERLAY;
+		else process.env.PI_OVERLAY = value;
+		try {
+			fn();
+		} finally {
+			if (saved === undefined) delete process.env.PI_OVERLAY;
+			else process.env.PI_OVERLAY = saved;
+		}
+	}
+
+	test("unset or empty PI_OVERLAY deserializes to EMPTY_OVERLAY", () => {
+		withEnv(undefined, () => {
+			expect(overlayFromEnv()).toEqual(EMPTY_OVERLAY);
+		});
+		withEnv("", () => {
+			expect(overlayFromEnv()).toEqual(EMPTY_OVERLAY);
+		});
+	});
+
+	test("valid payload returns the parsed overlay", () => {
+		withEnv(
+			JSON.stringify({
+				capabilities: { graphify: true },
+				models: { planner: "x/high" },
+			}),
+			() => {
+				const o = overlayFromEnv();
+				expect(o?.capabilities.graphify).toBe(true);
+				expect(o?.models).toEqual({ planner: "x/high" });
+			},
+		);
+	});
+
+	test("malformed payload returns undefined (child dispatch falls back)", () => {
+		withEnv("{not json", () => {
+			expect(overlayFromEnv()).toBeUndefined();
+		});
 	});
 });

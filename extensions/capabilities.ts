@@ -360,6 +360,18 @@ export function deserializeOverlayEnv(payload: string): Overlay {
 	};
 }
 
+/** Read PI_OVERLAY at runtime (child dispatch + capability gate).
+ * Returns `undefined` on a malformed payload: the launcher wrote it and
+ * capabilities.ts surfaces parse errors at prompt time, so dispatch just
+ * falls back to the primary's model/thinking instead of failing the child. */
+export function overlayFromEnv(): Overlay | undefined {
+	try {
+		return deserializeOverlayEnv(process.env.PI_OVERLAY ?? "");
+	} catch {
+		return undefined;
+	}
+}
+
 /**
  * Capability prompt-gate — reads PI_OVERLAY (JSON, written by bin/pi-life) and
  * appends a `<capabilities>` section to the system prompt at before_agent_start

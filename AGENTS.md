@@ -20,7 +20,7 @@ Pointers (load when the branch fires):
 - Skills live under `PI_SKILLS_HOME` or `~/.agents/skills`. Do not vendor packs into this repo.
 - Harness tasks: `bun` + `just`. Never add a `justfile` to a target repo. Proof: `just smoke` (no tokengate, no mlx).
 - Herdr is a host: `herdr agent start <name> --kind pi -- pi-life <life>`. Do not wrap Herdr in a Pi extension.
-- Boot config: first launch with no `.pi/capabilities.yaml` runs the `extensions/boot-config.ts` wizard (skips when `PI_OVERLAY_EXISTS=1` or no UI). Overlay `models.solo`/`thinking.solo` override profile `models:`/`thinking:` defaults into `pi --model`/`--thinking`.
+- Boot config: first launch with no `.pi/capabilities.yaml` runs the `extensions/boot-config.ts` wizard (skips when `PI_OVERLAY_EXISTS=1` or no UI). Overlay `models.solo`/`thinking.solo` override profile `models:`/`thinking:` defaults into `pi --model`/`--thinking`; chain/team/subagent children dispatch with the overlay's per-role model/thinking keyed on the child's agent name (planner/builder/reviewer/researcher), falling back to the primary's current model.
 - Ponytail: shortest working code. `ponytail-review` the staged diff before every push; cut findings first.
 - Secrets stay in the environment or `~/.config/rs-guard/env`. Never commit keys, `auth.json`, or `.env`, and never read them from a target repo.
 
@@ -34,7 +34,7 @@ Provider: DeepSeek (`DEEPSEEK_API_KEY`). Prefer `deepseek-v4-flash` for local re
 
 ## Not shipped — do not implement or review as if present
 
-Overlay merge (#11), per-role child dispatch (only `solo` drives `--model`/`--thinking`).
+Overlay merge (#11) — live merge of profile `models:`/`thinking:` into a saved overlay (children dispatch from the overlay only).
 
 ## Docs
 
