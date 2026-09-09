@@ -126,11 +126,6 @@ export default function (pi: ExtensionAPI) {
 				};
 			}
 
-			// Defensive: keep this so a future caller can ask "did the child argv
-			// get the right harness root?" without re-deriving it. The argv
-			// builder is the single source of truth — see buildChildArgv tests.
-			void buildChildArgv;
-
 			// The argv builder in subagentHelpers.ts is the single source of truth
 			// for the child spawn surface — see buildChildArgv tests.
 

@@ -9,7 +9,7 @@
  * Usage: loaded by bin/pi-life for solo mode only. Not wired for chain/team.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { applyExtensionDefaults } from "./themeMap.ts";
 
 export type TurnState = "ready" | "running" | "done";

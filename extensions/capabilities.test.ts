@@ -280,4 +280,23 @@ describe("serializeOverlayEnv / deserializeOverlayEnv", () => {
 			/capabilities.graphify must be a boolean/,
 		);
 	});
+
+	test("PI_OVERLAY trackerSkill accepts null and non-empty strings only", () => {
+		const okNull = JSON.stringify({ capabilities: {}, trackerSkill: null });
+		expect(deserializeOverlayEnv(okNull).trackerSkill).toBeNull();
+		const okStr = JSON.stringify({
+			capabilities: {},
+			trackerSkill: "local/x",
+		});
+		expect(deserializeOverlayEnv(okStr).trackerSkill).toBe("local/x");
+		for (const badSkill of [7, "", { skill: "x" }]) {
+			const bad = JSON.stringify({
+				capabilities: {},
+				trackerSkill: badSkill,
+			});
+			expect(() => deserializeOverlayEnv(bad)).toThrow(
+				/trackerSkill must be a non-empty string or null/,
+			);
+		}
+	});
 });
