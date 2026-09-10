@@ -101,7 +101,7 @@ teams:
     members: [builder, reviewer]
 ```
 
-`rs_guard: true` needs the overlay's `rs-guard: on` plus the binary on PATH; a non-zero rs-guard exit fails the chain closed.
+`rs_guard: true` needs the overlay's `rs-guard: true` plus the binary on PATH; a non-zero rs-guard exit fails the chain closed.
 
 ## Running chains and teams
 
