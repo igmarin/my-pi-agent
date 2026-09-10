@@ -307,7 +307,9 @@ launch_life() {
     pi_args+=(-e "${root}/extensions/agent-team.ts")
   fi
   # Chain mode loads the /chain + /chain-list commands and the run_chain tool.
-  # Mutually exclusive with team (agent-team.ts) and tilldone (status-line.ts).
+  # Mutually exclusive with team (agent-team.ts) and tilldone (status-line.ts)
+  # by launcher construction; the extensions themselves can still be stacked
+  # manually with pi -e if a session ever needs both surfaces.
   if [[ "${mode}" == "chain" ]]; then
     pi_args+=(-e "${root}/extensions/agent-chain.ts")
   fi

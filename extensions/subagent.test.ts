@@ -523,6 +523,20 @@ describe("dispatchOpts — per-role child dispatch", () => {
 		});
 	});
 
+	test("thinking-only entry overrides thinking while model falls back", () => {
+		withEnv(
+			JSON.stringify({
+				capabilities: {},
+				thinking: { planner: "off" },
+			}),
+			() => {
+				const r = dispatchOpts(base);
+				expect(r.dispatchModel).toBe("primary/current");
+				expect(r.dispatchThinkingLevel).toBe("off");
+			},
+		);
+	});
+
 	test("malformed PI_OVERLAY falls back (defensive; capabilities.ts surfaces parse errors)", () => {
 		withEnv("{not json", () => {
 			expect(dispatchOpts(base)).toEqual({

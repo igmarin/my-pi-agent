@@ -334,8 +334,11 @@ export interface RunOpts {
  * (planner, builder, reviewer, researcher — the same roles the overlay's
  * models:/thinking: maps configure), falling back to the caller-provided
  * primary values (ctx.model / ctx.thinkingLevel) when the agent has no role
- * entry. A malformed PI_OVERLAY also falls back — the launcher wrote it, and
- * capabilities.ts surfaces parse errors at prompt time.
+ * entry. Role names double as agent names by design: the default agents ARE
+ * the roles, and a custom agent named `planner` intentionally receives the
+ * planner entry (first-wins discovery). A malformed PI_OVERLAY also falls
+ * back — the launcher wrote it, and capabilities.ts surfaces parse errors at
+ * prompt time.
  */
 export function dispatchOpts(opts: RunOpts): {
 	dispatchModel?: string;
