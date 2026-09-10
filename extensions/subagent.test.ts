@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	buildChildArgv,
+	dispatchOpts,
 	formatTokens,
 	formatUsageStats,
 	getFinalOutput,
@@ -12,6 +13,7 @@ import {
 	resultOutput,
 	truncateAggregate,
 	truncateParallelOutput,
+	type RunOpts,
 	type SingleResult,
 } from "./subagentHelpers.ts";
 
@@ -453,5 +455,94 @@ describe("buildChildArgv — coverage of chain-mode args", () => {
 	test("{previous} placeholder in task is passed verbatim to the child", () => {
 		const argv = buildChildArgv(root, { task: "summarize: {previous}" });
 		expect(argv[argv.length - 1]).toBe("Task: summarize: {previous}");
+	});
+});
+
+describe("dispatchOpts — per-role child dispatch", () => {
+	const base: RunOpts = {
+		agents: [],
+		agentName: "planner",
+		task: "t",
+		defaultCwd: "/c",
+		harnessRoot: "/h",
+		dispatchModel: "primary/current",
+		dispatchThinkingLevel: "medium",
+	};
+
+	// PI_OVERLAY is process-wide; save/restore around each case.
+	let saved: string | undefined;
+	function withEnv(value: string | undefined, fn: () => void): void {
+		saved = process.env.PI_OVERLAY;
+		if (value === undefined) delete process.env.PI_OVERLAY;
+		else process.env.PI_OVERLAY = value;
+		try {
+			fn();
+		} finally {
+			if (saved === undefined) delete process.env.PI_OVERLAY;
+			else process.env.PI_OVERLAY = saved;
+		}
+	}
+
+	const overlay = JSON.stringify({
+		capabilities: {},
+		models: { planner: "xhigh/planner-model", reviewer: "low/reviewer-model" },
+		thinking: { planner: "max" },
+	});
+
+	test("no PI_OVERLAY: falls back to the caller's dispatch opts", () => {
+		withEnv(undefined, () => {
+			expect(dispatchOpts(base)).toEqual({
+				dispatchModel: "primary/current",
+				dispatchThinkingLevel: "medium",
+			});
+		});
+	});
+
+	test("agent with a role entry: overlay model/thinking override the fallback", () => {
+		withEnv(overlay, () => {
+			expect(dispatchOpts(base)).toEqual({
+				dispatchModel: "xhigh/planner-model",
+				dispatchThinkingLevel: "max",
+			});
+		});
+	});
+
+	test("agent without a role entry falls back (per-step resolution is keyed on the child's name)", () => {
+		withEnv(overlay, () => {
+			const builder = dispatchOpts({ ...base, agentName: "builder" });
+			expect(builder.dispatchModel).toBe("primary/current");
+			expect(builder.dispatchThinkingLevel).toBe("medium");
+		});
+	});
+
+	test("model and thinking resolve independently (entry with model only)", () => {
+		withEnv(overlay, () => {
+			const reviewer = dispatchOpts({ ...base, agentName: "reviewer" });
+			expect(reviewer.dispatchModel).toBe("low/reviewer-model");
+			expect(reviewer.dispatchThinkingLevel).toBe("medium");
+		});
+	});
+
+	test("thinking-only entry overrides thinking while model falls back", () => {
+		withEnv(
+			JSON.stringify({
+				capabilities: {},
+				thinking: { planner: "off" },
+			}),
+			() => {
+				const r = dispatchOpts(base);
+				expect(r.dispatchModel).toBe("primary/current");
+				expect(r.dispatchThinkingLevel).toBe("off");
+			},
+		);
+	});
+
+	test("malformed PI_OVERLAY falls back (defensive; capabilities.ts surfaces parse errors)", () => {
+		withEnv("{not json", () => {
+			expect(dispatchOpts(base)).toEqual({
+				dispatchModel: "primary/current",
+				dispatchThinkingLevel: "medium",
+			});
+		});
 	});
 });

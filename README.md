@@ -31,7 +31,7 @@ When a target repo has no `.pi/capabilities.yaml`, the first `pi-life` launch ru
 - Writes the overlay only after you confirm; a cancelled prompt skips that step.
 - Skips entirely when the overlay already exists or no UI is available.
 
-Later launches pass the overlay's solo `models`/`thinking` into `pi --model/--thinking`; `profiles/<life>.yaml` may carry optional `models:`/`thinking:` defaults that the overlay overrides. See CONTEXT.md (**Boot Config**, **Role**).
+Later launches pass the overlay's solo `models`/`thinking` into `pi --model/--thinking`; chain/team/subagent children dispatch with the overlay's per-role `models`/`thinking` keyed on the child's agent name. `profiles/<life>.yaml` may carry optional `models:`/`thinking:` defaults that the overlay overrides. See CONTEXT.md (**Boot Config**, **Role**).
 
 ### Rails-repo smoke
 
