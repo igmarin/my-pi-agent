@@ -1,6 +1,6 @@
 # my-pi-agent
 
-Personal [Pi](https://github.com/earendil-works/pi) harness. Glossary: [CONTEXT.md](CONTEXT.md).
+Personal [Pi](https://github.com/earendil-works/pi) harness. Glossary: [CONTEXT.md](CONTEXT.md). How-to: [docs/how-to.md](docs/how-to.md).
 
 ## Launch
 
