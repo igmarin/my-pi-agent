@@ -10,6 +10,7 @@ From the **target repo**, not this one:
 pi-life ruby               # Rails packs
 pi-life ruby chain
 pi-life ruby team
+pi-life ruby fusion .pi/fusion-harness/model-stack-trio.yaml  # 2-5 model stack
 pi-life python             # mantra only (pandas / FastAPI)
 pi-life elixir             # Elixir/Phoenix (no github-issue)
 pi-life rust

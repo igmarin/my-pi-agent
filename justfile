@@ -70,6 +70,25 @@ smoke:
     ! grep -q -- "agent-chain.ts" <<<"${rust_team_out}"
     ! grep -q -- "agent-team.ts" <<<"${rust_chain_out}"
 
+    # (p) fusion mode loads the vendored multi-model extension with an
+    # explicit stack file; solo/team/chain argv never carry it.
+    fusion_stack="${tmp}/model-stack-trio.yaml"
+    cp "${root}/stacks/model-stack-trio.yaml" "${fusion_stack}"
+    test -f "${root}/extensions/fusion-harness/fusion-harness.ts"
+    fusion_out="$("${bin}" --dry-run rust fusion "${fusion_stack}" 2>"${tmp}/fusion.err")"
+    echo "${fusion_out}" | grep -q -- "-e ${root}/extensions/fusion-harness/fusion-harness.ts"
+    echo "${fusion_out}" | grep -q -- "--fh-config ${fusion_stack}"
+    ! grep -q -- "fusion-harness.ts" <<<"${rust_solo_out}"
+    ! grep -q -- "fusion-harness.ts" <<<"${rust_chain_out}"
+    ! grep -q -- "fusion-harness.ts" <<<"${rust_team_out}"
+    status=0
+    "${bin}" --dry-run rust fusion >/dev/null 2>"${tmp}/fusion-noarg.err" || status=$?
+    test "${status}" -eq 2
+    status=0
+    "${bin}" --dry-run rust fusion "${tmp}/no-such-stack.yaml" >/dev/null 2>"${tmp}/fusion-nofile.err" || status=$?
+    test "${status}" -eq 2
+    grep -q 'fusion stack not found' "${tmp}/fusion-nofile.err"
+
     echo "${elixir_out}" | grep -q -- "--skill ${tmp}/elixir-phoenix-skills"
     ! grep -q -- "github-issue" <<<"${elixir_out}"
     ! grep -q -- "rails-agent-skills" <<<"${elixir_out}"
@@ -419,6 +438,12 @@ smoke:
       *"--model openrouter/profile-default"*)
         echo "overlay must override the profile solo model, got: ${solo_override_out}" >&2; exit 1 ;;
     esac
+    # (q) fusion mode: the stack's primary slot becomes the host model, so
+    # solo --model/--thinking are dropped; a configured solo override warns.
+    fusion_solo_out="$(cd "${solo_life}" && MY_PI_AGENT_HOME="${solo_life}" PI_SKILLS_HOME="${tmp}" "${bin}" --dry-run python fusion "${fusion_stack}" 2>"${tmp}/fusion-solo.err")"
+    ! grep -q -- "--model" <<<"${fusion_solo_out}"
+    ! grep -q -- "--thinking" <<<"${fusion_solo_out}"
+    grep -q 'solo model/thinking dropped' "${tmp}/fusion-solo.err"
     # (m) Issue #15: malformed profile models -> exit 2 (fail closed).
     badmodels="$(mktemp -d)"
     mkdir -p "${badmodels}/profiles"

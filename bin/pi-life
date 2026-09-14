@@ -5,7 +5,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: pi-life [--dry-run] <life> [solo|chain|team]
+Usage: pi-life [--dry-run] <life> [solo|chain|team|fusion <stack.yaml>]
        pi-life doctor [life]
        pi-life doctor-probe
        pi-life --dump-overlay <cwd>
@@ -17,6 +17,7 @@ Aliases: phoenix → elixir, rails → ruby
   solo   daily stack (default)
   chain  plan-build-review
   team   dispatcher
+  fusion multi-model stack (2-5 slots; see stacks/model-stack-trio.yaml)
   doctor this machine + cwd overlay (optional life checks its packs)
 
 Harness root: MY_PI_AGENT_HOME or the directory that contains this script.
@@ -334,7 +335,7 @@ merge_overlay_roles() {
 }
 
 launch_life() {
-  local root="$1" life="$2" mode="$3" dry_run="$4"
+  local root="$1" life="$2" mode="$3" dry_run="$4" fusion_stack="${5:-}"
   local profile="${root}/profiles/${life}.yaml"
   if [[ ! -f "${profile}" ]]; then
     printf 'pi-life: missing profile %s\n' "${profile}" >&2
@@ -366,6 +367,16 @@ launch_life() {
   # manually with pi -e if a session ever needs both surfaces.
   if [[ "${mode}" == "chain" ]]; then
     pi_args+=(-e "${root}/extensions/agent-chain.ts")
+  fi
+  # Fusion mode loads the vendored multi-model extension. The stack file
+  # must exist; the extension itself validates slots, auth, and provider
+  # visibility at startup. Modes are exclusive by construction.
+  if [[ "${mode}" == "fusion" ]]; then
+    if [[ ! -f "${fusion_stack}" ]]; then
+      printf 'pi-life: fusion stack not found: %s\n' "${fusion_stack}" >&2
+      exit 2
+    fi
+    pi_args+=(-e "${root}/extensions/fusion-harness/fusion-harness.ts" --fh-config "${fusion_stack}")
   fi
 
   local rows
@@ -434,8 +445,16 @@ launch_life() {
       thinking) solo_thinking="${extras_value}" ;;
     esac
   done <<<"${extras}"
-  [[ -n "${solo_model}" ]] && pi_args+=(--model "${solo_model}")
-  [[ -n "${solo_thinking}" ]] && pi_args+=(--thinking "${solo_thinking}")
+  if [[ "${mode}" == "fusion" ]]; then
+    # The stack's primary slot becomes the host model at startup; a solo
+    # override would only churn the session before the switch — warn + drop.
+    if [[ -n "${solo_model}" || -n "${solo_thinking}" ]]; then
+      doctor_warn "fusion mode: solo model/thinking dropped (stack primary is the host model)"
+    fi
+  else
+    [[ -n "${solo_model}" ]] && pi_args+=(--model "${solo_model}")
+    [[ -n "${solo_thinking}" ]] && pi_args+=(--thinking "${solo_thinking}")
+  fi
 
   if [[ "${dry_run}" -eq 1 ]]; then
     printf 'pi'
@@ -588,6 +607,11 @@ main() {
         doctor_warn "memory root ${memory_root} not present (created on first /remember)"
         optional=$((optional + 1))
       fi
+      # Fusion mode needs the vendored extension; missing = broken checkout.
+      if [[ ! -f "${root}/extensions/fusion-harness/fusion-harness.ts" ]]; then
+        doctor_warn "fusion extension missing (${root}/extensions/fusion-harness/)"
+        optional=$((optional + 1))
+      fi
       local ex_rc=0
       local ex_out
       ex_out="$(check_excludesfile 2>&1)" || ex_rc=$?
@@ -636,15 +660,24 @@ main() {
     exit 2
   fi
 
-  if [[ $# -gt 2 ]]; then
-    printf 'pi-life: unexpected argument: %s\n' "${3}" >&2
-    usage >&2
-    exit 2
-  fi
-
   local mode="${2:-solo}"
+  local fusion_stack=""
   case "${mode}" in
-    solo|team|chain) ;;
+    solo|team|chain)
+      if [[ $# -gt 2 ]]; then
+        printf 'pi-life: unexpected argument: %s\n' "${3}" >&2
+        usage >&2
+        exit 2
+      fi
+      ;;
+    fusion)
+      fusion_stack="${3:-}"
+      if [[ -z "${fusion_stack}" || $# -gt 3 ]]; then
+        printf 'pi-life: fusion requires exactly one stack file: pi-life %s fusion <stack.yaml>\n' "${1}" >&2
+        usage >&2
+        exit 2
+      fi
+      ;;
     *)
       printf 'pi-life: unknown mode %s\n' "${mode}" >&2
       usage >&2
@@ -652,7 +685,7 @@ main() {
       ;;
   esac
 
-  launch_life "${root}" "${life}" "${mode}" "${dry_run}"
+  launch_life "${root}" "${life}" "${mode}" "${dry_run}" "${fusion_stack}"
 }
 
 main "$@"

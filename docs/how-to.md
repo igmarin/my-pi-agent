@@ -44,7 +44,17 @@ pi-life --dry-run ruby  # print the pi argv, launch nothing
 
 Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` are not lives (exit 2).
 
-Mode exclusivity is structural: solo loads the status line, chain loads the chain extension, team loads the dispatcher — never more than one of the three.
+Mode exclusivity is structural: solo loads the status line, chain loads the chain extension, team loads the dispatcher, fusion loads the vendored multi-model extension — never more than one of them.
+
+## Model fusion
+
+```sh
+# one-time per target repo: copy the template, then edit model:/thinking: per slot
+mkdir -p .pi/fusion-harness && cp "$(dirname "$(command -v pi-life)")/../stacks/model-stack-trio.yaml" .pi/fusion-harness/
+pi-life ruby fusion .pi/fusion-harness/model-stack-trio.yaml
+```
+
+Slot rules, validation, and the `/fh-*` commands: CONTEXT.md **Fusion**.
 
 ## Project overlay (`.pi/capabilities.yaml`)
 
