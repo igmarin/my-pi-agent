@@ -61,11 +61,10 @@ check_excludesfile() {
   return 0
 }
 
-resolve_root() {
-  if [[ -n "${MY_PI_AGENT_HOME:-}" ]]; then
-    printf '%s\n' "${MY_PI_AGENT_HOME}"
-    return
-  fi
+# Real path of this script after following symlinks. Always resolves to the
+# actual checkout — unlike resolve_root it ignores MY_PI_AGENT_HOME, so
+# extension modules load from the harness even when the root is overridden.
+real_script_path() {
   local src="${BASH_SOURCE[0]}"
   while [[ -L "${src}" ]]; do
     local dir
@@ -73,7 +72,15 @@ resolve_root() {
     src="$(readlink "${src}")"
     [[ "${src}" != /* ]] && src="${dir}/${src}"
   done
-  cd "$(dirname "${src}")/.." && pwd
+  printf '%s\n' "${src}"
+}
+
+resolve_root() {
+  if [[ -n "${MY_PI_AGENT_HOME:-}" ]]; then
+    printf '%s\n' "${MY_PI_AGENT_HOME}"
+    return
+  fi
+  cd "$(dirname "$(real_script_path)")/.." && pwd
 }
 
 canonical_life() {
@@ -101,7 +108,7 @@ read_profile() {
   # MY_PI_AGENT_HOME overrides make root point at custom profile scaffolds
   # that have no extensions/ directory. Same rule as read_overlay.
   local caps_module
-  caps_module="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
+  caps_module="$(cd "$(dirname "$(real_script_path)")/.." && pwd)/extensions/capabilities.ts"
   (
     cd "${root}"
     # Role-map validation is shared with capabilities.ts (asRoleMap/asThinkingMap)
@@ -179,7 +186,7 @@ read_overlay() {
     return 2
   }
   local script
-  script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
+  script="$(cd "$(dirname "$(real_script_path)")/.." && pwd)/extensions/capabilities.ts"
   # Fast path: no overlay file = all off. Avoids the bun spawn on the common
   # no-overlay launch. EMPTY_OVERLAY is the canonical all-off payload; the
   # bun path below produces the same value for verification.
@@ -223,7 +230,7 @@ read_overlay() {
 resolve_pack_paths() {
   local skills_home="$1" name="$2" status=0
   if [[ -f "${skills_home}/.dotskills-manifest.json" ]]; then
-    bun "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/installed-skills.ts" "${skills_home}" "${name}" || status=$?
+    bun "$(cd "$(dirname "$(real_script_path)")/.." && pwd)/extensions/installed-skills.ts" "${skills_home}" "${name}" || status=$?
     # 0 = resolved entries; 1 = no entries for this pack (legacy fallback).
     # Anything else (2 = invalid manifest, or bun itself failed) fails closed.
     [[ "$status" -eq 0 ]] && return 0
@@ -291,7 +298,7 @@ add_overlay_skill() {
 overlay_extras() {
   local overlay_cwd="$1"
   local script
-  script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
+  script="$(cd "$(dirname "$(real_script_path)")/.." && pwd)/extensions/capabilities.ts"
   (
     cd "$(dirname "${script}")/.."
     OVERLAY_MODULE="${script}" OVERLAY_CWD="${overlay_cwd}" bun -e '
@@ -316,7 +323,7 @@ overlay_extras() {
 # argv — the overlay wins per role. Prints the merged JSON for PI_OVERLAY.
 merge_overlay_roles() {
   local script
-  script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
+  script="$(cd "$(dirname "$(real_script_path)")/.." && pwd)/extensions/capabilities.ts"
   (
     cd "$(dirname "${script}")/.."
     OVERLAY_MODULE="${script}" bun -e '

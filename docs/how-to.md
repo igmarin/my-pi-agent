@@ -7,9 +7,12 @@ Domain terms are in [CONTEXT.md](../CONTEXT.md); project rules in [AGENTS.md](..
 
 ```sh
 git clone git@github.com:igmarin/my-pi-agent.git && cd my-pi-agent
+npm i -g @earendil-works/pi-coding-agent   # the pi binary itself
 just install          # bun install + symlink pi-life onto ~/.local/bin
 git config core.hooksPath .githooks   # rs-guard pre-commit (or scripts/install-hooks.sh)
 ```
+
+Skills: every allowlisted mantra/pack/tracker name resolves to a directory under `PI_SKILLS_HOME` (default `~/.agents/skills`). Install packs with dotskills, or drop/symlink any directory containing a `SKILL.md` in there. Missing **required** paths — a mantra, or a tracker the profile configures — exit 2 at launch; a missing pack only warns and launch continues. A malformed `.dotskills-manifest.json` or a manifest entry missing its `SKILL.md` also exits 2.
 
 Requirements: `pi` and `bun` on PATH (fail-closed, checked by `pi-life doctor`); optional `just`, `rs-guard`, `herdr` (warn only). The `DEEPSEEK_API_KEY` for rs-guard reviews lives in the environment or `~/.config/rs-guard/env` — never in a target repo.
 
@@ -50,7 +53,8 @@ Mode exclusivity is structural: solo loads the status line, chain loads the chai
 
 ```sh
 # one-time per target repo: copy the template, then edit model:/thinking: per slot
-mkdir -p .pi/fusion-harness && cp "$(dirname "$(command -v pi-life)")/../stacks/model-stack-trio.yaml" .pi/fusion-harness/
+# (pi-life is a symlink — readlink resolves it to the harness clone where stacks/ lives)
+mkdir -p .pi/fusion-harness && cp "$(dirname "$(readlink "$(command -v pi-life)")")/../stacks/model-stack-trio.yaml" .pi/fusion-harness/
 pi-life ruby fusion .pi/fusion-harness/model-stack-trio.yaml
 ```
 
@@ -74,6 +78,8 @@ Cognition's SWE models are served over an OpenAI-compatible endpoint but aren't 
 ```
 
 `apiKey` interpolates `$VAR`/`${VAR}` from the environment (or a `!command`, or a literal — keep secrets out of the file per the secrets rule). Because it lives in `models.json`, the provider is visible to clean-room children (`pi --no-extensions --list-models`), which is what fusion's slot validation requires. `stacks/model-stack-cognition.yaml` is the copy template. Set `COGNITION_API_KEY` or put a literal in `models.json` — the launcher does not parse the stack for keys.
+
+`https://api.cognition.ai/v1` is the conventional default, but Cognition provisions endpoints per customer — if a request 401s with a valid key, use the base URL from your Cognition onboarding (as `baseUrl` here, or `COGNITION_API_BASE` for LiteLLM-style tools). Sanity-check the key before touching the stack: `curl https://api.cognition.ai/v1/chat/completions -H "Authorization: Bearer $COGNITION_API_KEY" -d '{"model":"swe-1.7","messages":[{"role":"user","content":"hi"}],"max_tokens":20}'`.
 
 ## Project overlay (`.pi/capabilities.yaml`)
 
@@ -202,6 +208,8 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 | `Damage-Control: <tool> blocked` | the gate caught `git push`, `reset --hard`, `clean`, a protected path (`.env`, `auth.json`), or a write outside cwd | intended behavior; ask the user how to proceed — the turn continues |
 | `Clarify gate: write/edit is blocked…` | the session hasn't accepted a prompt yet | run `/clarify` after landing the prompt you want |
 | `chain … rs-guard failed (exit 2)` | rs-guard `REQUEST_CHANGES` on the diff | address the findings, commit, re-run the chain |
+| `rs-guard: Error occurred (exit 1)` / `Request timed out` | the review provider's API is unreachable — a transport failure, not a verdict | retry; bypass with `git commit --no-verify` while the provider is down |
+| `401: incorrect_api_key` when the agent speaks | the configured pi model's key is wrong or absent | `/model` to a working provider, or fix the key in pi's config |
 | write prompt missing on first boot | no UI (print/JSON mode) | boot TUI needs a terminal; run interactively once |
 
 ## Environment variables
@@ -216,6 +224,7 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 | `PI_OVERLAY` / `PI_OVERLAY_EXISTS` | launcher → extension overlay payload / first-launch skip flag |
 | `HERDR_ENV` | set by Herdr; enables the `herdr` skill and Herdr-scoped memory journals (`HERDR_WORKSPACE_ID`/`HERDR_PANE_ID`) |
 | `DEEPSEEK_API_KEY` | rs-guard provider key (env or `~/.config/rs-guard/env`) |
+| `COGNITION_API_KEY` | Cognition SWE endpoint key for fusion stacks (`models.json` interpolates `$COGNITION_API_KEY`) |
 
 ## Harness development
 
