@@ -183,7 +183,7 @@ read_overlay() {
   # no-overlay launch. EMPTY_OVERLAY is the canonical all-off payload; the
   # bun path below produces the same value for verification.
   if [[ ! -f "${cwd}/.pi/capabilities.yaml" ]]; then
-    printf '%s\n' '{"capabilities":{"graphify":false,"codegraph":false,"serena":false,"rs-guard":false,"obscura":false,"playwright":false,"nightshift":false},"extraSkills":[],"trackerSkill":null}'
+    printf '%s\n' '{"capabilities":{"graphify":false,"codegraph":false,"serena":false,"rs-guard":false,"obscura":false,"playwright":false},"extraSkills":[],"trackerSkill":null}'
     return 0
   fi
   (

@@ -67,8 +67,7 @@ import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { parse as yamlParse } from "yaml";
 import { type AgentDef, collectAgents } from "./agentScan.ts";
-import { deserializeOverlayEnv, overlayFromEnv } from "./capabilities.ts";
-import { projectId, shouldWriteSummary, writeChainSummary } from "./memoryHelpers.ts";
+import { deserializeOverlayEnv } from "./capabilities.ts";
 import {
 	getFinalOutput,
 	isFailedResult,
@@ -548,20 +547,6 @@ function selectChain(
 	return { name, task: raw.trim() };
 }
 
-/**
- * Optional rs-nightshift hand-off: when the overlay enables `nightshift`, write
- * the chain output as a summary artifact (memory store or RS_NIGHTSHIFT_HOME).
- * Fail-open: a write error never fails the chain.
- */
-function recordChainSummary(chain: ChainDef, output: string, cwd: string): void {
-	if (!shouldWriteSummary(overlayFromEnv())) return;
-	try {
-		writeChainSummary(process.env, { project: projectId(cwd).id, kind: "chain", name: chain.name, output, at: new Date() });
-	} catch (e) {
-		console.error(`nightshift summary not written: ${e instanceof Error ? e.message : String(e)}`);
-	}
-}
-
 export default function (pi: ExtensionAPI) {
 	pi.registerCommand("chain-list", {
 		description:
@@ -624,7 +609,6 @@ export default function (pi: ExtensionAPI) {
 					dispatchModel,
 					dispatchThinkingLevel: ctx.thinkingLevel as string | undefined,
 				});
-				recordChainSummary(chain, output, ctx.cwd);
 				pi.sendUserMessage(output || "(chain finished with no output)");
 			} catch (e) {
 				const msg = e instanceof Error ? e.message : String(e);
@@ -697,7 +681,6 @@ export default function (pi: ExtensionAPI) {
 					dispatchModel,
 					dispatchThinkingLevel: ctx.thinkingLevel as string | undefined,
 				});
-				recordChainSummary(chain, output, ctx.cwd);
 				return {
 					content: [
 						{ type: "text", text: output || "(chain finished with no output)" },

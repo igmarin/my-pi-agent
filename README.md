@@ -26,7 +26,7 @@ Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` a
 
 When a target repo has no `.pi/capabilities.yaml`, the first `pi-life` launch runs a wizard:
 
-- Walks the seven capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright, nightshift).
+- Walks the six capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright).
 - Optionally sets per-role model and thinking defaults (solo, planner, builder, reviewer, researcher).
 - Writes the overlay only after you confirm; a cancelled prompt skips that step.
 - Skips entirely when the overlay already exists or no UI is available.

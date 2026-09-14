@@ -294,7 +294,7 @@ smoke:
     nooverlay="$(mktemp -d)"
     nooverlay_payload="$("${bin}" --dump-overlay "${nooverlay}")"
     case "${nooverlay_payload}" in
-      *'"graphify":false'*'"codegraph":false'*'"serena":false'*'"rs-guard":false'*'"obscura":false'*'"playwright":false'*'"nightshift":false'*) ;;
+      *'"graphify":false'*'"codegraph":false'*'"serena":false'*'"rs-guard":false'*'"obscura":false'*'"playwright":false'*) ;;
       *) echo "expected all-off overlay, got: ${nooverlay_payload}" >&2; exit 1 ;;
     esac
     # (b) Overlay on -> reflects the on capabilities.

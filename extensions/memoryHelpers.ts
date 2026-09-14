@@ -6,17 +6,14 @@
  * Store layout (plain files, readable by any CLI):
  *   <root>/<project-id>/memory.md                       durable notes
  *   <root>/<project-id>/sessions/<ts>-<life>[-<scope>].md  append-only journals
- *   <root>/<project-id>/summaries/<ts>-<life>.md         chain/session summaries
  *
  * Reads fail open (missing = empty). Never shells out to Herdr: scope comes
  * from Herdr's exported env vars only.
  */
 
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { stringify } from "yaml";
-import type { Overlay } from "./capabilities.ts";
 
 export type Env = Record<string, string | undefined>;
 
@@ -27,11 +24,6 @@ export function resolveMemoryRoot(env: Env = process.env): string {
 	if (env.PI_MEMORY_HOME) return env.PI_MEMORY_HOME;
 	if (env.PI_SKILLS_HOME) return join(dirname(env.PI_SKILLS_HOME), "memory");
 	return join(env.HOME ?? "", ".agents", "memory");
-}
-
-/** rs-nightshift artifact sink: RS_NIGHTSHIFT_HOME when set, else the memory root. */
-export function resolveSummarySink(env: Env = process.env): string {
-	return env.RS_NIGHTSHIFT_HOME || resolveMemoryRoot(env);
 }
 
 export function sanitizeSegment(raw: string): string {
@@ -103,7 +95,6 @@ export interface MemoryPaths {
 	dir: string;
 	memoryFile: string;
 	sessionsDir: string;
-	summariesDir: string;
 }
 
 export function memoryPaths(root: string, project: string): MemoryPaths {
@@ -112,7 +103,6 @@ export function memoryPaths(root: string, project: string): MemoryPaths {
 		dir,
 		memoryFile: join(dir, "memory.md"),
 		sessionsDir: join(dir, "sessions"),
-		summariesDir: join(dir, "summaries"),
 	};
 }
 
@@ -134,10 +124,6 @@ function journalName(opts: JournalNameOpts): string {
 
 export function sessionJournalPath(root: string, project: string, opts: JournalNameOpts): string {
 	return join(memoryPaths(root, project).sessionsDir, journalName(opts));
-}
-
-export function summaryArtifactPath(sink: string, project: string, opts: JournalNameOpts): string {
-	return join(memoryPaths(sink, project).summariesDir, journalName(opts));
 }
 
 export function readMemory(file: string): string {
@@ -278,54 +264,4 @@ export function childMemorySection(env: Env, cwd: string): string {
 	}
 }
 
-export interface SummaryInput {
-	project: string;
-	life?: string;
-	at: Date;
-	kind: "chain" | "session";
-	name?: string;
-	output: string;
-	scope?: string;
-}
 
-/** Markdown summary with YAML front matter (rs-nightshift / overnight pickup). */
-export function buildSummaryArtifact(input: SummaryInput): string {
-	const fm: Record<string, unknown> = {
-		project: input.project,
-		life: input.life ?? "pi",
-		kind: input.kind,
-	};
-	if (input.name) fm.name = input.name;
-	if (input.scope) fm.scope = input.scope;
-	fm.finished_at = input.at.toISOString();
-	return `---\n${stringify(fm).trimEnd()}\n---\n\n# ${input.kind} summary\n\n${input.output.trim() || "(no output)"}\n`;
-}
-
-export function writeSummaryArtifact(file: string, content: string): void {
-	mkdirSync(dirname(file), { recursive: true });
-	writeFileSync(file, content, { encoding: "utf8", flag: "wx" });
-}
-
-/** Summary artifacts are opt-in via the `nightshift` overlay capability. */
-export function shouldWriteSummary(overlay: Overlay | null | undefined): boolean {
-	return overlay?.capabilities.nightshift === true;
-}
-
-/** Write a chain/session summary into RS_NIGHTSHIFT_HOME (or the memory root). Returns the path. */
-export function writeChainSummary(env: Env, input: Omit<SummaryInput, "life" | "scope">): string {
-	const life = env.PI_LIFE;
-	const scope = sessionScope(env);
-	const content = buildSummaryArtifact({ ...input, life, scope });
-	const base = summaryArtifactPath(resolveSummarySink(env), input.project, { at: input.at, life, scope });
-	// Millisecond timestamps make collisions rare; -N suffixes make them harmless.
-	for (let n = 0; n < 100; n++) {
-		const file = n === 0 ? base : base.replace(/\.md$/, `-${n}.md`);
-		try {
-			writeSummaryArtifact(file, content);
-			return file;
-		} catch (e) {
-			if ((e as { code?: unknown }).code !== "EEXIST") throw e;
-		}
-	}
-	throw new Error(`summary artifact path stayed occupied after 100 retries: ${base}`);
-}
