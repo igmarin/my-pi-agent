@@ -88,6 +88,8 @@ smoke:
     "${bin}" --dry-run rust fusion "${tmp}/no-such-stack.yaml" >/dev/null 2>"${tmp}/fusion-nofile.err" || status=$?
     test "${status}" -eq 2
     grep -q 'fusion stack not found' "${tmp}/fusion-nofile.err"
+    fusion_cog_out="$("${bin}" --dry-run rust fusion "${root}/stacks/model-stack-cognition.yaml" 2>/dev/null)"
+    echo "${fusion_cog_out}" | grep -q -- "--fh-config ${root}/stacks/model-stack-cognition.yaml"
 
     echo "${elixir_out}" | grep -q -- "--skill ${tmp}/elixir-phoenix-skills"
     ! grep -q -- "github-issue" <<<"${elixir_out}"

@@ -1,0 +1,29 @@
+# Copy template — a fusion stack with a Cognition SWE ("Devin") slot.
+#
+# cognition/* models are not a built-in Pi provider: register one in
+# ~/.pi/agent/models.json first (see docs/how-to.md → "Cognition (SWE) slots"):
+#
+#   "cognition": {
+#     "baseUrl": "https://api.cognition.ai/v1",
+#     "api": "openai-completions",
+#     "apiKey": "$COGNITION_API_KEY",
+#     "models": [{ "id": "swe-1.7", "name": "SWE 1.7", "contextWindow": 262144, "maxTokens": 32768 }]
+#   }
+#
+# Then this slot is visible to clean-room children like any built-in.
+- name: fable
+  model: anthropic/claude-fable-5
+  thinking: high
+  architect: true
+  color: "#A78BFA"
+
+- name: swe
+  model: cognition/swe-1.7
+  thinking: medium
+  primary: true
+  color: "#34D399"
+
+- name: sol
+  model: openai/gpt-5.6-sol
+  thinking: medium
+  color: "#F59E0B"

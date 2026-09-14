@@ -56,6 +56,25 @@ pi-life ruby fusion .pi/fusion-harness/model-stack-trio.yaml
 
 Slot rules, validation, and the `/fh-*` commands: CONTEXT.md **Fusion**.
 
+### Cognition (SWE) slots
+
+Cognition's SWE models are served over an OpenAI-compatible endpoint but aren't a built-in Pi provider — register one in `~/.pi/agent/models.json`:
+
+```json
+{
+  "providers": {
+    "cognition": {
+      "baseUrl": "https://api.cognition.ai/v1",
+      "api": "openai-completions",
+      "apiKey": "$COGNITION_API_KEY",
+      "models": [{ "id": "swe-1.7", "name": "SWE 1.7", "contextWindow": 262144, "maxTokens": 32768 }]
+    }
+  }
+}
+```
+
+`apiKey` interpolates `$VAR`/`${VAR}` from the environment (or a `!command`, or a literal — keep secrets out of the file per the secrets rule). Because it lives in `models.json`, the provider is visible to clean-room children (`pi --no-extensions --list-models`), which is what fusion's slot validation requires. `stacks/model-stack-cognition.yaml` is the copy template. Set `COGNITION_API_KEY` or put a literal in `models.json` — the launcher does not parse the stack for keys.
+
 ## Project overlay (`.pi/capabilities.yaml`)
 
 Turn capabilities on per project; missing file ≡ all off; malformed YAML exits 2:
