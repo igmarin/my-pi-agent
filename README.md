@@ -22,6 +22,8 @@ Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` a
 
 `pi-life` loads `profiles/<life>.yaml`, then execs `pi -e extensions/damage-control-continue.ts --no-skills` plus allowlisted `--skill`. Invalid YAML, a missing mantra path, or a missing configured tracker path exits 2. Omit tracker = no tracker. Missing packs warn. Team mode additionally loads `extensions/agent-team.ts`: the primary is a dispatcher with `dispatch_agent` as its only tool (children inherit the damage-control gate); team definitions live under the `teams:` key of `agent-chain.yaml`. Chain mode additionally loads `extensions/agent-chain.ts` (`/chain`, `/chain-list`, `run_chain`; chains under the `chains:` key of the same file). Blocked `git push` / `reset --hard` / `clean -fd` / `.env` / `auth.json` / writes outside cwd return feedback; the turn continues.
 
+Every mode also loads the shared-memory extension (`remember`/`/remember`, `/recall`, `/session-note`) — see [docs/how-to.md](docs/how-to.md#shared-memory-remember-recall).
+
 ### First launch (boot config)
 
 When a target repo has no `.pi/capabilities.yaml`, the first `pi-life` launch runs a wizard:
