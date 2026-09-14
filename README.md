@@ -105,3 +105,7 @@ The workflow `.github/workflows/rs-guard-review.yml` runs on every non-draft pul
 - `.rs-guardignore` — paths excluded from review diffs.
 
 Harness profiles and project overlays are **YAML** (same parser as damage-control rules). See CONTEXT.md.
+
+## Acknowledgments
+
+This harness grew out of [IndyDevDan (disler)](https://github.com/disler)'s YouTube teaching on agent harnesses — his earlier work shaped the design, and `extensions/fusion-harness/` is vendored (MIT) from his [fusion-harness](https://github.com/disler/fusion-harness).
