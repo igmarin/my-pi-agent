@@ -26,7 +26,7 @@ First launch walks the boot-config wizard (`extensions/boot-config.ts`):
 
 1. **Purpose gate** — declare what this session is for.
 2. **Clarify gate** — `write`/`edit` are blocked until you run `/clarify` to accept the prompt. Read-only tools stay available so the model can explore.
-3. **Boot TUI** (only when `.pi/capabilities.yaml` does not exist): the six capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright) and optional per-role model/thinking. Saving is explicit — a cancelled prompt skips the write.
+3. **Boot TUI** (only when `.pi/capabilities.yaml` does not exist): the seven capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright, nightshift) and optional per-role model/thinking. Saving is explicit — a cancelled prompt skips the write.
 
 Second launch with a saved overlay: no TUI. The overlay's `models.solo`/`thinking.solo` become `pi --model`/`--thinking`.
 
@@ -72,7 +72,7 @@ thinking:
 
 ## Per-project agents, chains, teams
 
-Discovery (first-wins on name): `profiles/<life>/agents/` → `profiles/agents/` → cwd `.pi/agents/` → `.claude/.gemini/.codex` (cwd, then `$HOME`).
+Discovery (first-wins on name): `profiles/<life>/agents/` → `profiles/agents/` → cwd `.pi/agents/` → cwd `.claude/.gemini/.codex` → `$DOTSKILLS_HOME` (`agents/`, `commands/`, `skills/`; only when the var is set) → `$HOME/.claude/.gemini/.codex`.
 
 **Agent file** (`.pi/agents/my-agent.yaml`):
 
@@ -123,6 +123,28 @@ pi-life ruby team
 PI_TEAM=fast pi-life ruby team    # override the active team (default: planner, builder, reviewer, researcher)
 ```
 
+## Shared memory (`/remember`, `/recall`)
+
+Every mode loads `extensions/memory.ts`. Memory is plain files on this machine, outside any repo, so Devin/Cline/Grok/Codex can read and write the same store:
+
+```
+${PI_MEMORY_HOME:-${PI_SKILLS_HOME%/*}/memory}   # default ~/.agents/memory
+└── <project-id>/                                # github.com-owner-repo (git remote), else toplevel/cwd basename
+    ├── memory.md                                # durable notes: "- YYYY-MM-DD note"
+    ├── sessions/<ts>-<life>[-<herdr-scope>].md  # append-only per-session journal
+    ├── summaries/<ts>-<life>.md                 # nightshift chain summaries (opt-in)
+    └── index.yaml                               # machine index (YAML)
+```
+
+- `remember` tool / `/remember <note>` — append a dated bullet to `memory.md`.
+- `/session-note <note>` — append to this session's journal.
+- `/recall` — print `memory.md` and the most recent journals.
+- On launch, `memory.md` plus the 3 newest journals are appended to the system prompt as `<memory>` (capped at 24 KiB). Missing store = empty memory; launch never fails on memory.
+- Chain/team/subagent children get the same block **read-only** inside their task; only the primary writes, so parallel Herdr panes never race on the files.
+- **Herdr scoping**: with `HERDR_ENV=1`, journal names gain `-<workspace-id>-<pane-id>` from Herdr's `HERDR_WORKSPACE_ID`/`HERDR_PANE_ID` env vars (fallback `-herdr`). Nothing shells out to `herdr`.
+- **nightshift** capability (overlay `nightshift: true`): when a chain finishes, its output is written as a markdown summary with YAML front matter under `summaries/` — or under `$RS_NIGHTSHIFT_HOME/<project-id>/summaries/` when set — for unattended pickup.
+- Keep the store out of git. If you ever point `PI_MEMORY_HOME` inside a repo, add that path to `.gitignore` or your excludesfile.
+
 ## rs-guard review flow
 
 - **Pre-commit**: reviews **staged** files; `REQUEST_CHANGES` (exit 2) aborts the commit. Bypass: `git commit --no-verify`.
@@ -137,7 +159,7 @@ pi-life doctor           # machine + cwd health; prints the resolved overlay
 pi-life doctor ruby      # + checks ruby pack paths
 ```
 
-`doctor` fails closed on missing `pi`/`bun` or missing mantra/tracker skill paths; warns on missing packs, `just`, `rs-guard`, `herdr`, and a missing/incomplete `git config --get core.excludesfile` (needs: `node_modules`, `.pi/agent-sessions/`, `.env`, `graphify-out/`, `.codegraph/`).
+`doctor` fails closed on missing `pi`/`bun` or missing mantra/tracker skill paths; warns on missing packs, `just`, `rs-guard`, `herdr`, an absent memory root (`~/.agents/memory`, created on first `/remember`), and a missing/incomplete `git config --get core.excludesfile` (needs: `node_modules`, `.pi/agent-sessions/`, `.env`, `graphify-out/`, `.codegraph/`).
 
 Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life ruby`. The `herdr` skill is allowlisted everywhere but no-ops unless `HERDR_ENV=1`.
 
@@ -159,11 +181,14 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 | Var | Purpose |
 |---|---|
 | `PI_SKILLS_HOME` | skill root (default `~/.agents/skills`) |
+| `PI_MEMORY_HOME` | shared memory root (default `<skills-root>/../memory`, i.e. `~/.agents/memory`) |
+| `DOTSKILLS_HOME` | extra `agents/`, `commands/`, `skills/` source in discovery (after cwd, before `$HOME`) |
+| `RS_NIGHTSHIFT_HOME` | sink for `nightshift` chain summaries (default: memory root) |
 | `MY_PI_AGENT_HOME` | harness root override (default: the directory containing `pi-life`) |
 | `PI_TEAM` | active team in team mode |
 | `PI_LIFE` | exported to children; agent/chain discovery uses it |
 | `PI_OVERLAY` / `PI_OVERLAY_EXISTS` | launcher → extension overlay payload / first-launch skip flag |
-| `HERDR_ENV` | set by Herdr; enables the `herdr` skill |
+| `HERDR_ENV` | set by Herdr; enables the `herdr` skill and Herdr-scoped memory journals (`HERDR_WORKSPACE_ID`/`HERDR_PANE_ID`) |
 | `DEEPSEEK_API_KEY` | rs-guard provider key (env or `~/.config/rs-guard/env`) |
 
 ## Harness development

@@ -41,10 +41,11 @@ smoke:
     python_out="$("${bin}" --dry-run python 2>"${tmp}/python.err")"
 
     case "${rust_out}" in
-      pi\ -e\ *damage-control-continue.ts\ *capabilities.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
+      pi\ -e\ *damage-control-continue.ts\ -e\ *memory.ts\ *capabilities.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
       *) echo "INV-skills: rust argv must include -e damage-control-continue -e capabilities.ts -e clarify-gate.ts --no-skills: ${rust_out}" >&2; exit 1 ;;
     esac
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/damage-control-continue.ts"
+    echo "${rust_out}" | grep -q -- "-e ${root}/extensions/memory.ts"
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/boot-config.ts"
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/capabilities.ts"
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/clarify-gate.ts"
@@ -293,7 +294,7 @@ smoke:
     nooverlay="$(mktemp -d)"
     nooverlay_payload="$("${bin}" --dump-overlay "${nooverlay}")"
     case "${nooverlay_payload}" in
-      *'"graphify":false'*'"codegraph":false'*'"serena":false'*'"rs-guard":false'*'"obscura":false'*'"playwright":false'*) ;;
+      *'"graphify":false'*'"codegraph":false'*'"serena":false'*'"rs-guard":false'*'"obscura":false'*'"playwright":false'*'"nightshift":false'*) ;;
       *) echo "expected all-off overlay, got: ${nooverlay_payload}" >&2; exit 1 ;;
     esac
     # (b) Overlay on -> reflects the on capabilities.
@@ -499,7 +500,7 @@ smoke:
       console.log("agent-chain default chain ok");
     '
     echo "smoke ok"
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
@@ -510,6 +511,7 @@ smoke:
       "{{root}}/extensions/agent-team.ts" \
       "{{root}}/extensions/status-line.ts" \
       "{{root}}/extensions/subagent.ts" "{{root}}/extensions/subagentHelpers.ts" \
+      "{{root}}/extensions/memory.ts" "{{root}}/extensions/memoryHelpers.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
     bun -e '
       import { formatTurnLine } from "./extensions/status-line.ts";
@@ -589,7 +591,7 @@ smoke-rails repo='discover':
     done
     out="$(cd "${repo}" && PI_SKILLS_HOME="${tmp}" "${bin}" --dry-run ruby 2>"${tmp}/err")"
     case "${out}" in
-      pi\ -e\ *damage-control-continue.ts\ *capabilities.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
+      pi\ -e\ *damage-control-continue.ts\ -e\ *memory.ts\ *capabilities.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
       *) echo "smoke-rails: INV-skills argv wrong: ${out}" >&2; exit 1 ;;
     esac
     echo "${out}" | grep -q -- "--skill ${tmp}/ruby-core-skills"
