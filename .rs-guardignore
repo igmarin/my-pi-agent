@@ -18,6 +18,7 @@
 
 # Generated / vendored code
 vendor/
+extensions/fusion-harness/
 node_modules/
 target/
 dist/

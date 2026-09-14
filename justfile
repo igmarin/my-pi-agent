@@ -565,8 +565,7 @@ smoke:
       }
       console.log("agent-chain default chain ok");
     '
-    echo "smoke ok"
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts" "{{root}}/extensions/installed-skills.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts" "{{root}}/extensions/installed-skills.test.ts" "{{root}}/extensions/fusion-harness/tests"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
@@ -579,6 +578,7 @@ smoke:
       "{{root}}/extensions/subagent.ts" "{{root}}/extensions/subagentHelpers.ts" \
       "{{root}}/extensions/memory.ts" "{{root}}/extensions/memoryHelpers.ts" \
       "{{root}}/extensions/installed-skills.ts" \
+      "{{root}}/extensions/fusion-harness/fusion-harness.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
     bun -e '
       import { formatTurnLine } from "./extensions/status-line.ts";
@@ -624,6 +624,7 @@ smoke:
     # the default run is deterministic (a discovered repo's own overlay could
     # inject argv). `just smoke-rails` manually prefers a real repo.
     just smoke-rails fixture
+    echo "smoke ok"
 
 # Issue #14: run pi-life ruby from a Rails repo. repo is a path (must contain
 # a Gemfile), "discover" (auto-detect under ~/Developer, default), or
