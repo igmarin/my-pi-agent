@@ -70,6 +70,10 @@ _Avoid_: orchestrator, multi-agent (overloaded; "subagent" is the harness's name
 Dispatcher-only mode, launched only via `pi-life <life> team`. The primary loads `extensions/agent-team.ts`, which sets `dispatch_agent` as the ONLY active tool (no read/write/bash) and dispatches tasks to team members as child `pi` processes that always inherit the damage-control gate. Teams live under the `teams:` key of `agent-chain.yaml` (same file and precedence as chains); the default team is `planner, builder, reviewer, researcher`; `PI_TEAM` env overrides the active team; `/team-list` lists them. Structurally mutually exclusive with chain (`agent-chain.ts`) and tilldone (`status-line.ts`): the launcher never loads those in team mode, so `setActiveTools` cannot conflict.
 _Avoid_: swarm, crew
 
+**Fusion**:
+Multi-model mode (`pi-life <life> fusion <stack.yaml>`) loading the vendored fusion-harness extension. A stack YAML declares 2–5 slots — exactly one `architect: true`, exactly one non-architect `primary: true` that becomes the host model — with `provider/id` models, thinking levels, and optional per-slot prompts. The extension validates every slot against clean-room children (`pi --no-extensions --list-models`) and configured auth at startup; `/fh-opinion`, `/fh-debate`, `/fh-fusion`, `/fh-collaborate`, `/fh-only`, `/fh-model` run the fan-outs under a single-writer invariant. The launcher drops solo `--model`/`--thinking` in fusion mode (stack primary wins; configured solo values warn on stderr). Stack files are per-target-repo — `stacks/model-stack-trio.yaml` is the copy template.
+_Avoid_: team (a fixed dispatcher roster, not model slots); overlay `models:`/`thinking:` (those drive chain/team/subagent dispatch — orthogonal to fusion's own slots)
+
 **Tracker**:
 Where tickets are created. `rust`, `ruby`, and `python` use `github-issue`. `elixir` (work) uses a machine-local overlay skill for the internal tool. The overlay's `tracker.skill` is loaded as a `--skill` arg in the argv, so the work-internal tool is available without committing its name to the public repo.
 _Avoid_: board, project (GitHub Project is a surface of the tracker)
