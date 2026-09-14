@@ -377,13 +377,6 @@ launch_life() {
       exit 2
     fi
     pi_args+=(-e "${root}/extensions/fusion-harness/fusion-harness.ts" --fh-config "${fusion_stack}")
-    # Advisory only: cognition/* slots need a models.json provider; the key
-    # may be a literal there, so a missing env var warns, never fails.
-    # Matches `model: cognition/…` lines; quoted or `- model:` list-style
-    # entries are not matched (advisory only, so a miss is silent, not wrong).
-    if grep -qE '^[[:space:]]*model:[[:space:]]*cognition/' "${fusion_stack}" && [[ -z "${COGNITION_API_KEY:-}" ]]; then
-      doctor_warn "fusion stack uses cognition/* but COGNITION_API_KEY is unset (ok if models.json carries a literal key)"
-    fi
   fi
 
   local rows

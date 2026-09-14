@@ -73,7 +73,7 @@ Cognition's SWE models are served over an OpenAI-compatible endpoint but aren't 
 }
 ```
 
-`apiKey` interpolates `$VAR`/`${VAR}` from the environment (or a `!command`, or a literal — keep secrets out of the file per the secrets rule). Because it lives in `models.json`, the provider is visible to clean-room children (`pi --no-extensions --list-models`), which is what fusion's slot validation requires. `stacks/model-stack-cognition.yaml` is the copy template. Launching a stack that references `cognition/*` without `COGNITION_API_KEY` set prints a warning (not a failure — the key may be a literal in `models.json`).
+`apiKey` interpolates `$VAR`/`${VAR}` from the environment (or a `!command`, or a literal — keep secrets out of the file per the secrets rule). Because it lives in `models.json`, the provider is visible to clean-room children (`pi --no-extensions --list-models`), which is what fusion's slot validation requires. `stacks/model-stack-cognition.yaml` is the copy template. Set `COGNITION_API_KEY` or put a literal in `models.json` — the launcher does not parse the stack for keys.
 
 ## Project overlay (`.pi/capabilities.yaml`)
 
