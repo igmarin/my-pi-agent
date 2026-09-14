@@ -26,7 +26,6 @@ import {
 	summaryArtifactPath,
 	writeIndex,
 } from "./memoryHelpers.ts";
-import { collectAgents, discover } from "./agentScan.ts";
 import { CAPABILITY_KEYS, deserializeOverlayEnv, parseOverlayDoc, serializeOverlayEnv } from "./capabilities.ts";
 import { buildChildArgv } from "./subagentHelpers.ts";
 
@@ -289,7 +288,7 @@ describe("buildSummaryArtifact", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Integration points: children (read-only), dotskills discovery, nightshift flag
+// Integration points: children (read-only), nightshift flag
 // ---------------------------------------------------------------------------
 
 describe("buildChildArgv memory injection (read-only)", () => {
@@ -313,56 +312,6 @@ describe("buildChildArgv memory injection (read-only)", () => {
 		const s = childMemorySection({ PI_MEMORY_HOME: root }, tmp);
 		expect(s).toContain("shared fact");
 		expect(s).toContain("read-only");
-	});
-});
-
-describe("DOTSKILLS_HOME discovery source", () => {
-	const harness = join(tmp, "harness");
-	const cwd = join(tmp, "cwd");
-	const home = join(tmp, "home");
-	const dot = join(tmp, "dotskills");
-	afterEach(() => {
-		delete process.env.DOTSKILLS_HOME;
-		delete process.env.MY_PI_AGENT_HOME;
-		delete process.env.PI_LIFE;
-	});
-	function seed() {
-		mkdirSync(join(harness, "profiles/agents"), { recursive: true });
-		mkdirSync(join(cwd, ".pi/agents"), { recursive: true });
-		mkdirSync(join(dot, "agents"), { recursive: true });
-		mkdirSync(join(dot, "commands"), { recursive: true });
-		mkdirSync(join(dot, "skills/demo"), { recursive: true });
-		mkdirSync(join(home, ".claude/commands"), { recursive: true });
-		writeFileSync(join(cwd, ".pi/agents/builder.md"), "---\nname: builder\ndescription: pi\n---\nPI\n");
-		writeFileSync(join(dot, "agents/builder.md"), "---\nname: builder\ndescription: dot\n---\nDOT\n");
-		writeFileSync(join(dot, "agents/scout.md"), "---\nname: scout\ndescription: dot\n---\nSCOUT\n");
-		writeFileSync(join(dot, "commands/foo.md"), "---\ndescription: dot foo\n---\nDot\n");
-		writeFileSync(join(dot, "skills/demo/SKILL.md"), "---\nname: demo\ndescription: d\n---\nD\n");
-		writeFileSync(join(home, ".claude/commands/foo.md"), "---\ndescription: home foo\n---\nHome\n");
-		writeFileSync(join(home, ".claude/commands/bar.md"), "---\ndescription: home bar\n---\nBar\n");
-		process.env.MY_PI_AGENT_HOME = harness;
-		process.env.PI_LIFE = "ruby";
-	}
-	test("absent var = no dotskills group", () => {
-		seed();
-		expect(discover(cwd, import.meta.url, home).some((g) => g.source === "dotskills")).toBe(false);
-	});
-	test("set var adds a 'dotskills' source after cwd sources and before home, first-wins preserved", () => {
-		seed();
-		process.env.DOTSKILLS_HOME = dot;
-		const groups = discover(cwd, import.meta.url, home);
-		const sources = groups.map((g) => g.source);
-		const iDot = sources.indexOf("dotskills");
-		expect(iDot).toBeGreaterThan(sources.indexOf(".pi/agents"));
-		expect(iDot).toBeLessThan(sources.indexOf("~/.claude"));
-		const agents = collectAgents(cwd, import.meta.url, home);
-		expect(agents.find((a) => a.name === "builder")?.body).toBe("PI");
-		expect(agents.find((a) => a.name === "scout")?.source).toBe("dotskills");
-		const dotGroup = groups.find((g) => g.source === "dotskills")!;
-		expect(dotGroup.commands.map((c) => c.name)).toEqual(["foo"]);
-		expect(dotGroup.skills.map((s) => s.name)).toEqual(["demo"]);
-		const homeGroup = groups.find((g) => g.source === "~/.claude");
-		expect(homeGroup?.commands.map((c) => c.name) ?? []).not.toContain("foo");
 	});
 });
 

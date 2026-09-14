@@ -215,15 +215,6 @@ export function discover(cwd: string, extFileUrl: string, home = homedir()): Sou
 			agents: join(dir, "agents"),
 		});
 	}
-	const dotskills = process.env.DOTSKILLS_HOME;
-	if (dotskills) {
-		specs.push({
-			source: "dotskills",
-			commands: join(dotskills, "commands"),
-			skills: join(dotskills, "skills"),
-			agents: join(dotskills, "agents"),
-		});
-	}
 	for (const p of PROVIDERS) {
 		const dir = join(home, `.${p}`);
 		specs.push({
