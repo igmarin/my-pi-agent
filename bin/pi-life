@@ -223,10 +223,10 @@ resolve_pack_paths() {
   local skills_home="$1" name="$2" status=0
   if [[ -f "${skills_home}/.dotskills-manifest.json" ]]; then
     bun "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/installed-skills.ts" "${skills_home}" "${name}" || status=$?
-    [[ "$status" -eq 2 ]] && return 2
+    # 0 = resolved entries; 1 = no entries for this pack (legacy fallback).
+    # Anything else (2 = invalid manifest, or bun itself failed) fails closed.
     [[ "$status" -eq 0 ]] && return 0
-    # status 1 (no entries) — or bun itself missing — falls through to the
-    # legacy dir check; doctor already hard-requires bun.
+    [[ "$status" -eq 1 ]] || return 2
   fi
   [[ -e "${skills_home}/${name}" ]] || return 1
   printf '%s\n' "${skills_home}/${name}"

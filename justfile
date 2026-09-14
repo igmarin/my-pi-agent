@@ -455,6 +455,45 @@ smoke:
     test "${status}" -eq 2
     grep -q 'models.sol is not a known role' "${tmp}/badovl2.err"
     rm -rf "${solo_life}" "${badmodels}" "${badlevel}" "${badrole}"
+    # (o) Pack manifest resolution: a hand-authored .dotskills-manifest.json in
+    # PI_SKILLS_HOME expands a pack into its installed skills, and a broken
+    # install (missing SKILL.md) fails closed — no dotskills checkout needed.
+    pack_life="$(mktemp -d)"
+    pack_home="${tmp}/pack-skills-home"
+    mkdir -p "${pack_life}/profiles" "${pack_home}/i-have-adhd" "${pack_home}/build"
+    printf '%s\n' '# i-have-adhd' >"${pack_home}/i-have-adhd/SKILL.md"
+    printf '%s\n' '# build' >"${pack_home}/build/SKILL.md"
+    printf '%s\n' 'life: python' 'tracker: none' 'mantra: [i-have-adhd]' 'packs: [my-pack]' >"${pack_life}/profiles/python.yaml"
+    printf '%s\n' '{"schema_version":1,"skills":{"my-pack:build":{"path":"build","source":"o/my-pack"}}}' >"${pack_home}/.dotskills-manifest.json"
+    pack_out="$(cd "${pack_life}" && MY_PI_AGENT_HOME="${pack_life}" PI_SKILLS_HOME="${pack_home}" "${bin}" --dry-run python 2>"${tmp}/pack.err")"
+    case "${pack_out}" in
+      *"--skill ${pack_home}/build "*|*"--skill ${pack_home}/build") ;;
+      *) echo "expected manifest-resolved --skill ${pack_home}/build, got: ${pack_out}" >&2; exit 1 ;;
+    esac
+    # Manifest present but the pack has no entries -> legacy <home>/<name> dir.
+    printf '%s\n' '{"schema_version":1,"skills":{"other-pack:x":{"path":"build","source":"o/other"}}}' >"${pack_home}/.dotskills-manifest.json"
+    mkdir -p "${pack_home}/my-pack"
+    printf '%s\n' '# my-pack' >"${pack_home}/my-pack/SKILL.md"
+    pack_legacy_out="$(cd "${pack_life}" && MY_PI_AGENT_HOME="${pack_life}" PI_SKILLS_HOME="${pack_home}" "${bin}" --dry-run python 2>"${tmp}/pack-legacy.err")"
+    case "${pack_legacy_out}" in
+      *"--skill ${pack_home}/my-pack "*|*"--skill ${pack_home}/my-pack") ;;
+      *) echo "expected legacy dir fallback --skill ${pack_home}/my-pack, got: ${pack_legacy_out}" >&2; exit 1 ;;
+    esac
+    rm -rf "${pack_home}/my-pack"
+    # A malformed manifest is a resolver failure: fail closed (exit 2).
+    printf '%s\n' 'not json{' >"${pack_home}/.dotskills-manifest.json"
+    status=0
+    (cd "${pack_life}" && MY_PI_AGENT_HOME="${pack_life}" PI_SKILLS_HOME="${pack_home}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/pack-badjson.err") || status=$?
+    test "${status}" -eq 2
+    # Restore a valid manifest, then removing the installed skill fails closed.
+    printf '%s\n' '{"schema_version":1,"skills":{"my-pack:build":{"path":"build","source":"o/my-pack"}}}' >"${pack_home}/.dotskills-manifest.json"
+    # Removing an installed skill fails the launch closed (exit 2).
+    rm "${pack_home}/build/SKILL.md"
+    status=0
+    (cd "${pack_life}" && MY_PI_AGENT_HOME="${pack_life}" PI_SKILLS_HOME="${pack_home}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/pack-broken.err") || status=$?
+    test "${status}" -eq 2
+    grep -q 'missing installed skill' "${tmp}/pack-broken.err"
+    rm -rf "${pack_life}"
     # (j) Issue #17: no work-internal tracker name/URL/token in the public repo.
     # The sentinel is a placeholder; if it ever matches a real identifier, the
     # harness has leaked a private name. Excludes the justfile itself (which

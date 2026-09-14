@@ -14,6 +14,7 @@ export function installedPackPaths(skillsHome: string, pack: string): string[] {
   for (const [identity, raw] of Object.entries(manifest.skills)) {
     if (!identity.startsWith(`${pack}:`)) continue;
     const entry = raw as { path?: unknown };
+    // Flat install only: install_owned.py writes path = the skill dir name.
     if (!entry || typeof entry.path !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(entry.path)) {
       throw new Error(`invalid installed skill path: ${identity}`);
     }
