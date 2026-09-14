@@ -79,6 +79,8 @@ Cognition's SWE models are served over an OpenAI-compatible endpoint but aren't 
 
 `apiKey` interpolates `$VAR`/`${VAR}` from the environment (or a `!command`, or a literal — keep secrets out of the file per the secrets rule). Because it lives in `models.json`, the provider is visible to clean-room children (`pi --no-extensions --list-models`), which is what fusion's slot validation requires. `stacks/model-stack-cognition.yaml` is the copy template. Set `COGNITION_API_KEY` or put a literal in `models.json` — the launcher does not parse the stack for keys.
 
+`https://api.cognition.ai/v1` is the conventional default, but Cognition provisions endpoints per customer — if a request 401s with a valid key, use the base URL from your Cognition onboarding (as `baseUrl` here, or `COGNITION_API_BASE` for LiteLLM-style tools). Sanity-check the key before touching the stack: `curl https://api.cognition.ai/v1/chat/completions -H "Authorization: Bearer $COGNITION_API_KEY" -d '{"model":"swe-1.7","messages":[{"role":"user","content":"hi"}],"max_tokens":20}'`.
+
 ## Project overlay (`.pi/capabilities.yaml`)
 
 Turn capabilities on per project; missing file ≡ all off; malformed YAML exits 2:
