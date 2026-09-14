@@ -45,9 +45,10 @@ Later launches pass the overlay's solo `models`/`thinking` into `pi --model/--th
 ```sh
 npm i -g @earendil-works/pi-coding-agent   # the pi binary
 just install                             # bun install + symlink pi-life onto ~/.local/bin
+just install-smoke                       # verify the symlink + --dry-run through it
 ```
 
-Skills resolve to directories under `~/.agents/skills` — install packs there before the first `pi-life <life>` or launch exits 2 on a missing allowlisted path. Full setup: [docs/how-to.md](docs/how-to.md#install).
+Skills resolve to directories under `~/.agents/skills` — install packs there before the first `pi-life <life>` or launch exits 2 on a missing required path (packs only warn). Full setup: [docs/how-to.md](docs/how-to.md#install).
 
 ## Herdr (host)
 

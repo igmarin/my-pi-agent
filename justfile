@@ -15,6 +15,25 @@ install:
     ln -sfn "{{root}}/bin/pi-life" "${HOME}/.local/bin/pi-life"
     echo "pi-life -> {{root}}/bin/pi-life"
 
+# Verify the install symlink and a --dry-run through it (stub skills, no dotskills)
+install-smoke:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    link="${HOME:?HOME must be set}/.local/bin/pi-life"
+    test -L "${link}" || { echo "install-smoke: ${link} missing or not a symlink (run just install)" >&2; exit 1; }
+    test "$(readlink "${link}")" = "{{root}}/bin/pi-life" || { echo "install-smoke: ${link} -> $(readlink "${link}"), expected {{root}}/bin/pi-life" >&2; exit 1; }
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "${tmp}"' EXIT
+    for name in i-have-adhd ponytail ponytail-review deslop clarify requirements-clarifier tdd herdr github-issue; do
+      mkdir -p "${tmp}/${name}"
+      printf '%s\n' "# ${name}" >"${tmp}/${name}/SKILL.md"
+    done
+    # run from a temp cwd to prove the installed path works outside the clone
+    out="$(cd "$(mktemp -d)" && PI_SKILLS_HOME="${tmp}" "${link}" --dry-run ruby)"
+    grep -q -- "-e .*extensions/damage-control-continue.ts" <<<"${out}"
+    grep -q -- "--no-skills" <<<"${out}"
+    echo "install-smoke ok (${link})"
+
 # Help + dry-run profile smoke (does not launch Pi TUI)
 smoke:
     #!/usr/bin/env bash
