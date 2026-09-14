@@ -167,6 +167,7 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 | exit 2, `missing required mantra …` | allowlisted skill path does not exist under `PI_SKILLS_HOME` (or `~/.agents/skills`) | create/symlink the skill dir, or set `PI_SKILLS_HOME` |
 | exit 2, `invalid YAML` | profile or overlay failed the strict parser | fix the YAML; one format, one parser (`yaml` npm) |
 | exit 2, `unknown key(s): …` | overlay has a key the parser doesn't know (e.g. a removed capability) | delete the key from `.pi/capabilities.yaml` |
+| exit 2, `invalid skill identity manifest` / `missing installed skill` | `.dotskills-manifest.json` is corrupt or an installed skill dir was removed | reinstall the pack with dotskills, or remove the manifest to fall back to plain dirs |
 | exit 2, `unknown life` / `not a life` | typo or `ecto`/`rails-python` | use `rust`, `elixir`, `ruby`, `python` (or alias) |
 | `Unknown session` | resume/attach with an ID the local store doesn't know | start from the same repo/machine; `pi --list-sessions`; or just relaunch `pi-life <life>` |
 | `Damage-Control: <tool> blocked` | the gate caught `git push`, `reset --hard`, `clean`, a protected path (`.env`, `auth.json`), or a write outside cwd | intended behavior; ask the user how to proceed — the turn continues |
@@ -192,6 +193,7 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 ```sh
 just smoke        # the proof: launches nothing, asserts argv invariants, ends with smoke-rails
 bun test          # unit suites for extensions
+just test-dotskills  # manual e2e: real dotskills install -> pack resolution (needs a dotskills checkout)
 just --list       # ext-* recipes for hacking on extensions standalone
 ```
 

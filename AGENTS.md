@@ -18,7 +18,7 @@ Pointers (load when the branch fires):
 - `python` is pandas/FastAPI, not a Rails companion. GraphQL/REST are API packs, not lives.
 - Extensions: `export default function (pi)`. Skip `ctx.ui` when `!ctx.hasUI`. Stacked `-e`: first extension wins the theme. `cross-agent` / `system-select` live under `extensions/` but are not passed by `pi-life` yet. Agent search: `profiles/<life>/agents/` (YAML), shared `profiles/agents/`, cwd `.pi/agents/`, then `.claude/.gemini/.codex` (cwd), then `~/.claude/.gemini/.codex`. First-wins on name. Alias `rails` → `ruby`.
 - Config for profiles/overlays/damage-control is YAML. Do not add TOML for those files. `yaml` npm is the parser.
-- Skills live under `PI_SKILLS_HOME` or `~/.agents/skills`. Do not vendor packs into this repo.
+- Skills live under `PI_SKILLS_HOME` or `~/.agents/skills`. Do not vendor packs into this repo. A pack name resolves via `.dotskills-manifest.json` (`<pack>:<name>` identities, written by the dotskills installer) when present; a malformed manifest or a missing installed skill exits 2, a pack with no manifest entries falls back to the legacy `<skills-home>/<name>` dir.
 - Memory: `extensions/memory.ts` + `memoryHelpers.ts`; store at `PI_MEMORY_HOME` or `<skills-root>/../memory` (default `~/.agents/memory`; markdown, no lock). Primary writes, children read-only. Never inside a repo; never shell out to Herdr for scope.
 - Harness tasks: `bun` + `just`. Never add a `justfile` to a target repo. Proof: `just smoke` (no tokengate, no mlx).
 - Herdr is a host: `herdr agent start <name> --kind pi -- pi-life <life>`. Do not wrap Herdr in a Pi extension.

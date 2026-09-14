@@ -500,7 +500,7 @@ smoke:
       console.log("agent-chain default chain ok");
     '
     echo "smoke ok"
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts" "{{root}}/extensions/installed-skills.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
@@ -512,6 +512,7 @@ smoke:
       "{{root}}/extensions/status-line.ts" \
       "{{root}}/extensions/subagent.ts" "{{root}}/extensions/subagentHelpers.ts" \
       "{{root}}/extensions/memory.ts" "{{root}}/extensions/memoryHelpers.ts" \
+      "{{root}}/extensions/installed-skills.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
     bun -e '
       import { formatTurnLine } from "./extensions/status-line.ts";
@@ -604,6 +605,11 @@ smoke-rails repo='discover':
     else
       echo "smoke-rails ok (${repo})"
     fi
+
+# Manual e2e: real dotskills install -> pi-life manifest resolution.
+# Needs a dotskills checkout (DOTSKILLS_HOME or ../dotskills); not in smoke.
+test-dotskills:
+    "{{root}}/scripts/test-dotskills-install.sh"
 
 # Harness-dev: damage-control-continue (does not launch via pi-life)
 ext-damage-control:

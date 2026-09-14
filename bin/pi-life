@@ -217,6 +217,21 @@ read_overlay() {
   )
 }
 
+# Resolve an installed pack's explicit manifest entries; legacy directory installs
+# remain supported when the manifest has no entries for that pack.
+resolve_pack_paths() {
+  local skills_home="$1" name="$2" status=0
+  if [[ -f "${skills_home}/.dotskills-manifest.json" ]]; then
+    bun "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/installed-skills.ts" "${skills_home}" "${name}" || status=$?
+    [[ "$status" -eq 2 ]] && return 2
+    [[ "$status" -eq 0 ]] && return 0
+    # status 1 (no entries) — or bun itself missing — falls through to the
+    # legacy dir check; doctor already hard-requires bun.
+  fi
+  [[ -e "${skills_home}/${name}" ]] || return 1
+  printf '%s\n' "${skills_home}/${name}"
+}
+
 # Globals: skill_names, pi_args
 # required=1 fail closed; required=0 warn and continue
 add_named_skill() {
@@ -228,6 +243,21 @@ add_named_skill() {
   skill_names="${skill_names} ${name}"
 
   local path="${skills_home}/${name}"
+  if [[ "${kind}" == "pack" ]]; then
+    local resolved status=0 existing duplicate
+    resolved="$(resolve_pack_paths "${skills_home}" "${name}")" || status=$?
+    [[ "$status" -eq 2 ]] && exit 2
+    if [[ "$status" -eq 0 ]]; then
+      while IFS= read -r resolved_path; do
+        duplicate=0
+        for existing in "${pi_args[@]}"; do
+          [[ "$existing" == "$resolved_path" ]] && duplicate=1
+        done
+        [[ "$duplicate" -eq 1 ]] || pi_args+=(--skill "$resolved_path")
+      done <<<"${resolved}"
+      return 0
+    fi
+  fi
   if [[ -e "${path}" ]]; then
     pi_args+=(--skill "${path}")
     return 0
@@ -489,7 +519,10 @@ main() {
               fi
               ;;
             pack)
-              if [[ ! -e "${skills_home}/${name}" ]]; then
+              local pack_status=0
+              resolve_pack_paths "${skills_home}" "${name}" >/dev/null || pack_status=$?
+              [[ "$pack_status" -eq 2 ]] && exit 2
+              if [[ "$pack_status" -ne 0 ]]; then
                 doctor_warn "missing pack ${name} (${skills_home}/${name})"
                 optional=$((optional + 1))
               fi
