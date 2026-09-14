@@ -26,7 +26,7 @@ First launch walks the boot-config wizard (`extensions/boot-config.ts`):
 
 1. **Purpose gate** — declare what this session is for.
 2. **Clarify gate** — `write`/`edit` are blocked until you run `/clarify` to accept the prompt. Read-only tools stay available so the model can explore.
-3. **Boot TUI** (only when `.pi/capabilities.yaml` does not exist): the seven capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright, nightshift) and optional per-role model/thinking. Saving is explicit — a cancelled prompt skips the write.
+3. **Boot TUI** (only when `.pi/capabilities.yaml` does not exist): the six capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright) and optional per-role model/thinking. Saving is explicit — a cancelled prompt skips the write.
 
 Second launch with a saved overlay: no TUI. The overlay's `models.solo`/`thinking.solo` become `pi --model`/`--thinking`.
 
@@ -131,8 +131,7 @@ Every mode loads `extensions/memory.ts`. Memory is plain files on this machine, 
 ${PI_MEMORY_HOME:-${PI_SKILLS_HOME%/*}/memory}   # default ~/.agents/memory
 └── <project-id>/                                # github.com-owner-repo (git remote), else toplevel/cwd basename
     ├── memory.md                                # durable notes: "- YYYY-MM-DD note"
-    ├── sessions/<ts>-<life>[-<herdr-scope>].md  # append-only per-session journal
-    └── summaries/<ts>-<life>.md                 # nightshift chain summaries (opt-in)
+    └── sessions/<ts>-<life>[-<herdr-scope>].md  # append-only per-session journal
 ```
 
 - `remember` tool / `/remember <note>` — append a dated bullet to `memory.md`.
@@ -141,7 +140,6 @@ ${PI_MEMORY_HOME:-${PI_SKILLS_HOME%/*}/memory}   # default ~/.agents/memory
 - On launch, `memory.md` plus the 3 newest journals are appended to the system prompt as `<memory>` (capped at 24 KiB). Missing store = empty memory; launch never fails on memory.
 - Chain/team/subagent children get the same block **read-only** inside their task; only the primary writes, so parallel Herdr panes never race on the files.
 - **Herdr scoping**: with `HERDR_ENV=1`, journal names gain `-<workspace-id>-<pane-id>` from Herdr's `HERDR_WORKSPACE_ID`/`HERDR_PANE_ID` env vars (fallback `-herdr`). Nothing shells out to `herdr`.
-- **nightshift** capability (overlay `nightshift: true`): when a chain finishes, its output is written as a markdown summary with YAML front matter under `summaries/` — or under `$RS_NIGHTSHIFT_HOME/<project-id>/summaries/` when set — for unattended pickup.
 - Keep the store out of git. If you ever point `PI_MEMORY_HOME` inside a repo, add that path to `.gitignore` or your excludesfile.
 
 ## rs-guard review flow
@@ -181,7 +179,6 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 |---|---|
 | `PI_SKILLS_HOME` | skill root (default `~/.agents/skills`) |
 | `PI_MEMORY_HOME` | shared memory root (default `<skills-root>/../memory`, i.e. `~/.agents/memory`) |
-| `RS_NIGHTSHIFT_HOME` | sink for `nightshift` chain summaries (default: memory root) |
 | `MY_PI_AGENT_HOME` | harness root override (default: the directory containing `pi-life`) |
 | `PI_TEAM` | active team in team mode |
 | `PI_LIFE` | exported to children; agent/chain discovery uses it |

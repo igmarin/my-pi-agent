@@ -2,29 +2,22 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parse } from "yaml";
 import {
 	appendDurableNote,
 	appendJournal,
 	buildMemorySection,
 	childMemorySection,
 	projectId,
-	shouldWriteSummary,
-	writeChainSummary,
-	buildSummaryArtifact,
 	listSessionJournals,
 	loadMemoryContext,
 	memoryPaths,
 	projectIdFrom,
 	readMemory,
 	resolveMemoryRoot,
-	resolveSummarySink,
 	sanitizeSegment,
 	sessionJournalPath,
 	sessionScope,
-	summaryArtifactPath,
 } from "./memoryHelpers.ts";
-import { CAPABILITY_KEYS, deserializeOverlayEnv, parseOverlayDoc, serializeOverlayEnv } from "./capabilities.ts";
 import { buildChildArgv } from "./subagentHelpers.ts";
 
 const tmp = join(tmpdir(), `mpa-memory-${process.pid}`);
@@ -121,15 +114,6 @@ describe("paths", () => {
 			"/root/proj/sessions/20260914T010203000Z-ruby-ws-x.md",
 		);
 		expect(sessionJournalPath("/root", "proj", { at })).toBe("/root/proj/sessions/20260914T010203000Z-pi.md");
-	});
-	test("summaryArtifactPath under the sink", () => {
-		expect(summaryArtifactPath("/sink", "proj", { at, life: "rust" })).toBe(
-			"/sink/proj/summaries/20260914T010203000Z-rust.md",
-		);
-	});
-	test("resolveSummarySink prefers RS_NIGHTSHIFT_HOME", () => {
-		expect(resolveSummarySink({ RS_NIGHTSHIFT_HOME: "/ns", HOME: "/h" })).toBe("/ns");
-		expect(resolveSummarySink({ HOME: "/h" })).toBe("/h/.agents/memory");
 	});
 });
 
@@ -246,33 +230,8 @@ describe("loadMemoryContext", () => {
 	});
 });
 
-describe("buildSummaryArtifact", () => {
-	test("markdown with YAML front matter for unattended pickup", () => {
-		const md = buildSummaryArtifact({
-			project: "p",
-			life: "ruby",
-			at,
-			kind: "chain",
-			name: "plan-build-review",
-			output: "All done.",
-			scope: "ws",
-		});
-		const fm = md.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-		expect(fm).not.toBeNull();
-		expect(parse(fm![1])).toEqual({
-			project: "p",
-			life: "ruby",
-			kind: "chain",
-			name: "plan-build-review",
-			scope: "ws",
-			finished_at: "2026-09-14T01:02:03.000Z",
-		});
-		expect(fm![2]).toContain("All done.");
-	});
-});
-
 // ---------------------------------------------------------------------------
-// Integration points: children (read-only), nightshift flag
+// Integration points: children (read-only)
 // ---------------------------------------------------------------------------
 
 describe("buildChildArgv memory injection (read-only)", () => {
@@ -296,40 +255,5 @@ describe("buildChildArgv memory injection (read-only)", () => {
 		const s = childMemorySection({ PI_MEMORY_HOME: root }, tmp);
 		expect(s).toContain("shared fact");
 		expect(s).toContain("read-only");
-	});
-});
-
-describe("nightshift capability", () => {
-	test("is a capability key, defaults off, parses as a strict boolean", () => {
-		expect(CAPABILITY_KEYS).toContain("nightshift");
-		expect(parseOverlayDoc({}).capabilities.nightshift).toBe(false);
-		expect(parseOverlayDoc({ nightshift: true }).capabilities.nightshift).toBe(true);
-		expect(() => parseOverlayDoc({ nightshift: "on" })).toThrow(/nightshift must be a boolean/);
-	});
-	test("round-trips through the env serialization", () => {
-		const o = parseOverlayDoc({ nightshift: true });
-		expect(deserializeOverlayEnv(serializeOverlayEnv(o)).capabilities.nightshift).toBe(true);
-	});
-	test("shouldWriteSummary is true only when the overlay enables nightshift", () => {
-		expect(shouldWriteSummary(null)).toBe(false);
-		expect(shouldWriteSummary(parseOverlayDoc({}))).toBe(false);
-		expect(shouldWriteSummary(parseOverlayDoc({ nightshift: true }))).toBe(true);
-	});
-	test("writeChainSummary writes the artifact under the sink and returns its path", () => {
-		const sink = join(tmp, "ns");
-		const file = writeChainSummary(
-			{ RS_NIGHTSHIFT_HOME: sink, PI_LIFE: "ruby" },
-			{ project: "p", kind: "chain", name: "c", output: "done", at },
-		);
-		expect(file).toBe(join(sink, "p", "summaries", "20260914T010203000Z-ruby.md"));
-		expect(readFileSync(file, "utf8")).toContain("name: c");
-	});
-	test("same-timestamp summaries never overwrite: a -N suffix keeps both", () => {
-		const env = { RS_NIGHTSHIFT_HOME: join(tmp, "ns"), PI_LIFE: "ruby" };
-		const a = writeChainSummary(env, { project: "p", kind: "chain", name: "a", output: "first", at });
-		const b = writeChainSummary(env, { project: "p", kind: "chain", name: "b", output: "second", at });
-		expect(a).not.toBe(b);
-		expect(readFileSync(a, "utf8")).toContain("first");
-		expect(readFileSync(b, "utf8")).toContain("second");
 	});
 });
