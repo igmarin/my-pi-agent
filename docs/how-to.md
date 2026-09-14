@@ -72,7 +72,7 @@ thinking:
 
 ## Per-project agents, chains, teams
 
-Discovery (first-wins on name): `profiles/<life>/agents/` → `profiles/agents/` → cwd `.pi/agents/` → cwd `.claude/.gemini/.codex` → `$DOTSKILLS_HOME` (`agents/`, `commands/`, `skills/`; only when the var is set) → `$HOME/.claude/.gemini/.codex`.
+Discovery (first-wins on name): `profiles/<life>/agents/` → `profiles/agents/` → cwd `.pi/agents/` → cwd `.claude/.gemini/.codex` → `$HOME/.claude/.gemini/.codex`.
 
 **Agent file** (`.pi/agents/my-agent.yaml`):
 
@@ -182,7 +182,6 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 |---|---|
 | `PI_SKILLS_HOME` | skill root (default `~/.agents/skills`) |
 | `PI_MEMORY_HOME` | shared memory root (default `<skills-root>/../memory`, i.e. `~/.agents/memory`) |
-| `DOTSKILLS_HOME` | extra `agents/`, `commands/`, `skills/` source in discovery (after cwd, before `$HOME`) |
 | `RS_NIGHTSHIFT_HOME` | sink for `nightshift` chain summaries (default: memory root) |
 | `MY_PI_AGENT_HOME` | harness root override (default: the directory containing `pi-life`) |
 | `PI_TEAM` | active team in team mode |
