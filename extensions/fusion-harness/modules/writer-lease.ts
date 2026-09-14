@@ -57,7 +57,13 @@ export function acquireWriterLease(cwd: string, ownerLabel: string): WriterLease
 			if (existing && processAlive(Number(existing.pid))) {
 				throw new Error(`writer lease busy for ${canonicalCwd(cwd)} — ${existing.command ?? existing.owner ?? `pid ${existing.pid}`} is already allowed to mutate this checkout`);
 			}
-			try { fs.unlinkSync(lockPath); } catch {}
+			// Rename is atomic: only one reclaiming process can take the stale file.
+			// Unlink-then-create would let a second process delete the winner's live lock.
+			try {
+				fs.renameSync(lockPath, `${lockPath}.stale.${process.pid}.${Date.now()}`);
+			} catch {
+				/* lost the race — retry wx against whatever is there now */
+			}
 		}
 	}
 	throw new Error(`could not acquire writer lease for ${canonicalCwd(cwd)}`);

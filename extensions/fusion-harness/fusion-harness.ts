@@ -42,6 +42,7 @@ import { createHash, randomUUID } from "node:crypto"; // persistent session ids 
 import * as fs from "node:fs"; // artifacts, session manifests
 import * as os from "node:os"; // tmpdir fallback when /tmp is missing
 import * as path from "node:path"; // every artifact/session path
+import { pathToFileURL } from "node:url";
 import { performance } from "node:perf_hooks"; // host-turn TPS boundaries
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
@@ -248,7 +249,7 @@ export default function (pi: ExtensionAPI) {
 				const script = process.argv[1];
 				if (!script || script.startsWith("/$bunfs/")) return undefined;
 				const real = await fs.promises.realpath(script);
-				const mod = await import(new URL(`file://${path.join(path.dirname(real), "core", "system-prompt.js")}`).href);
+				const mod = await import(pathToFileURL(path.join(path.dirname(real), "core", "system-prompt.js")).href);
 				return typeof mod.buildSystemPrompt === "function" ? mod.buildSystemPrompt : undefined;
 			} catch {
 				return undefined;
@@ -1088,6 +1089,18 @@ export default function (pi: ExtensionAPI) {
 			if (!selectedThinkingRaw) return;
 			const selectedThinking = resolveStackThinking(selectedThinkingRaw);
 			if (!selectedThinking) return;
+
+			let catalogue: Set<string>;
+			try {
+				catalogue = await childVisibleModels();
+			} catch (error) {
+				ctx.ui.notify(`fusion-harness: ${error instanceof Error ? error.message : String(error)}`, "error");
+				return;
+			}
+			if (!catalogue.has(selectedModel)) {
+				ctx.ui.notify(`fusion-harness: ${selectedModel} is not visible to clean-room children launched with --no-extensions`, "error");
+				return;
+			}
 
 			const next = cloneStack(stack);
 			const target = next.slots.find((slot) => slot.id === selectedSlot.id)!;

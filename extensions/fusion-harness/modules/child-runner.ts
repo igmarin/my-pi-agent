@@ -14,6 +14,25 @@ import { performance } from "node:perf_hooks";
 import { briefArg, runOk, type AgentRun } from "./runtime.ts";
 
 const KILL_GRACE_MS = 5_000; // SIGTERM → SIGKILL escalation window
+const GATE_OUTPUT_MAX_BYTES = 1_000_000; // keep draining; stop retaining after this
+
+/** Node reports `code === null` when the process dies from a signal — that is not success. */
+function closeCode(code: number | null, aborted: boolean, timedOut: boolean): number {
+	if (aborted) return 130;
+	if (timedOut) return 124;
+	return code ?? 1;
+}
+
+function appendCapped(current: string, chunk: Buffer, maxBytes: number): string {
+	const currentBytes = Buffer.byteLength(current, "utf8");
+	if (currentBytes >= maxBytes) return current;
+	const piece = chunk.toString();
+	const next = current + piece;
+	if (Buffer.byteLength(next, "utf8") <= maxBytes) return next;
+	const room = maxBytes - currentBytes;
+	const cut = Buffer.from(piece, "utf8").subarray(0, Math.max(0, room)).toString("utf8");
+	return `${current}${cut}\n[output truncated]`;
+}
 
 /** Locate the running pi binary so we can re-invoke it as a child. */
 export function piInvocation(args: string[]): { command: string; args: string[] } {
@@ -258,7 +277,7 @@ export function runChild(opts: {
 		proc.on("close", (code) => {
 			closed = true;
 			if (buffer.trim()) processLine(buffer); // flush a final unterminated line
-			run.exitCode = aborted ? 130 : timedOut ? 124 : (code ?? 0);
+			run.exitCode = closeCode(code, aborted, timedOut);
 			cleanup();
 			settle();
 			resolve(run);
@@ -318,10 +337,10 @@ export function runProc(
 		};
 		signal?.addEventListener("abort", onAbort, { once: true });
 		proc.stdout?.on("data", (d: Buffer) => {
-			output += d.toString();
+			output = appendCapped(output, d, GATE_OUTPUT_MAX_BYTES);
 		});
 		proc.stderr?.on("data", (d: Buffer) => {
-			output += d.toString();
+			output = appendCapped(output, d, GATE_OUTPUT_MAX_BYTES);
 		});
 		const cleanup = () => {
 			clearTimeout(timer);
@@ -333,7 +352,7 @@ export function runProc(
 				resolve({ code: 130, output: `${output}\n[stopped by user]`, aborted: true });
 				return;
 			}
-			resolve({ code: timedOut ? 124 : (code ?? 0), output: timedOut ? `${output}\n[gate timed out]` : output });
+			resolve({ code: closeCode(code, false, timedOut), output: timedOut ? `${output}\n[gate timed out]` : output });
 		});
 		proc.on("error", (err) => {
 			cleanup();

@@ -11,6 +11,7 @@
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { CollaborationTask } from "./collaboration-graph.ts";
 import { orderedSlots, type ModelSlot, type ModelStack } from "./model-stack.ts";
 import { runOk, runError, shortModel, truncateChars, type AgentRun } from "./runtime.ts";
@@ -22,7 +23,7 @@ export const HANDOFF_MAX = 60_000; // chars of one agent's answer injected into 
 const MODULE_DIR: string =
 	typeof __dirname !== "undefined" && __dirname
 		? __dirname
-		: path.dirname(new URL(import.meta.url).pathname);
+		: path.dirname(fileURLToPath(import.meta.url));
 const PROMPT_DIR = [path.join(MODULE_DIR, "..", "prompts"), path.join(MODULE_DIR, "prompts")].find((candidate) => fs.existsSync(candidate)) ?? path.join(MODULE_DIR, "..", "prompts");
 
 const promptCache = new Map<string, string>(); // each template file is read once per process

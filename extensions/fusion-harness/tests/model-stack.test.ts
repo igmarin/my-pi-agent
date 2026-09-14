@@ -37,9 +37,11 @@ describe("model stack", () => {
   });
 
   test("stable-hash colors are deterministic", () => {
-    const a = loadModelStack(fixture(valid, "model-stack-trio.yaml").file);
-    const b = loadModelStack(fixture(valid, "model-stack-trio.yaml").file);
+    const noColor = valid.replace(/\n  color: "#[0-9A-F]{6}"/g, "");
+    const a = loadModelStack(fixture(noColor, "model-stack-trio.yaml").file);
+    const b = loadModelStack(fixture(noColor, "model-stack-trio.yaml").file);
     expect(a.slots.map((s) => s.color)).toEqual(b.slots.map((s) => s.color));
+    expect(a.slots.every((s) => /^#[0-9A-F]{6}$/.test(s.color))).toBe(true);
   });
 
   test.each([
