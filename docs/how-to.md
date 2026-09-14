@@ -132,8 +132,7 @@ ${PI_MEMORY_HOME:-${PI_SKILLS_HOME%/*}/memory}   # default ~/.agents/memory
 └── <project-id>/                                # github.com-owner-repo (git remote), else toplevel/cwd basename
     ├── memory.md                                # durable notes: "- YYYY-MM-DD note"
     ├── sessions/<ts>-<life>[-<herdr-scope>].md  # append-only per-session journal
-    ├── summaries/<ts>-<life>.md                 # nightshift chain summaries (opt-in)
-    └── index.yaml                               # machine index (YAML)
+    └── summaries/<ts>-<life>.md                 # nightshift chain summaries (opt-in)
 ```
 
 - `remember` tool / `/remember <note>` — append a dated bullet to `memory.md`.
