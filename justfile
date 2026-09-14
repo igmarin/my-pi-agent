@@ -477,6 +477,45 @@ smoke:
     test "${status}" -eq 2
     grep -q 'models.sol is not a known role' "${tmp}/badovl2.err"
     rm -rf "${solo_life}" "${badmodels}" "${badlevel}" "${badrole}"
+    # (o) Pack manifest resolution: a hand-authored .dotskills-manifest.json in
+    # PI_SKILLS_HOME expands a pack into its installed skills, and a broken
+    # install (missing SKILL.md) fails closed — no dotskills checkout needed.
+    pack_life="$(mktemp -d)"
+    pack_home="${tmp}/pack-skills-home"
+    mkdir -p "${pack_life}/profiles" "${pack_home}/i-have-adhd" "${pack_home}/build"
+    printf '%s\n' '# i-have-adhd' >"${pack_home}/i-have-adhd/SKILL.md"
+    printf '%s\n' '# build' >"${pack_home}/build/SKILL.md"
+    printf '%s\n' 'life: python' 'tracker: none' 'mantra: [i-have-adhd]' 'packs: [my-pack]' >"${pack_life}/profiles/python.yaml"
+    printf '%s\n' '{"schema_version":1,"skills":{"my-pack:build":{"path":"build","source":"o/my-pack"}}}' >"${pack_home}/.dotskills-manifest.json"
+    pack_out="$(cd "${pack_life}" && MY_PI_AGENT_HOME="${pack_life}" PI_SKILLS_HOME="${pack_home}" "${bin}" --dry-run python 2>"${tmp}/pack.err")"
+    case "${pack_out}" in
+      *"--skill ${pack_home}/build "*|*"--skill ${pack_home}/build") ;;
+      *) echo "expected manifest-resolved --skill ${pack_home}/build, got: ${pack_out}" >&2; exit 1 ;;
+    esac
+    # Manifest present but the pack has no entries -> legacy <home>/<name> dir.
+    printf '%s\n' '{"schema_version":1,"skills":{"other-pack:x":{"path":"build","source":"o/other"}}}' >"${pack_home}/.dotskills-manifest.json"
+    mkdir -p "${pack_home}/my-pack"
+    printf '%s\n' '# my-pack' >"${pack_home}/my-pack/SKILL.md"
+    pack_legacy_out="$(cd "${pack_life}" && MY_PI_AGENT_HOME="${pack_life}" PI_SKILLS_HOME="${pack_home}" "${bin}" --dry-run python 2>"${tmp}/pack-legacy.err")"
+    case "${pack_legacy_out}" in
+      *"--skill ${pack_home}/my-pack "*|*"--skill ${pack_home}/my-pack") ;;
+      *) echo "expected legacy dir fallback --skill ${pack_home}/my-pack, got: ${pack_legacy_out}" >&2; exit 1 ;;
+    esac
+    rm -rf "${pack_home}/my-pack"
+    # A malformed manifest is a resolver failure: fail closed (exit 2).
+    printf '%s\n' 'not json{' >"${pack_home}/.dotskills-manifest.json"
+    status=0
+    (cd "${pack_life}" && MY_PI_AGENT_HOME="${pack_life}" PI_SKILLS_HOME="${pack_home}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/pack-badjson.err") || status=$?
+    test "${status}" -eq 2
+    # Restore a valid manifest, then removing the installed skill fails closed.
+    printf '%s\n' '{"schema_version":1,"skills":{"my-pack:build":{"path":"build","source":"o/my-pack"}}}' >"${pack_home}/.dotskills-manifest.json"
+    # Removing an installed skill fails the launch closed (exit 2).
+    rm "${pack_home}/build/SKILL.md"
+    status=0
+    (cd "${pack_life}" && MY_PI_AGENT_HOME="${pack_life}" PI_SKILLS_HOME="${pack_home}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/pack-broken.err") || status=$?
+    test "${status}" -eq 2
+    grep -q 'missing installed skill' "${tmp}/pack-broken.err"
+    rm -rf "${pack_life}"
     # (j) Issue #17: no work-internal tracker name/URL/token in the public repo.
     # The sentinel is a placeholder; if it ever matches a real identifier, the
     # harness has leaked a private name. Excludes the justfile itself (which
@@ -522,7 +561,7 @@ smoke:
       console.log("agent-chain default chain ok");
     '
     echo "smoke ok"
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts" "{{root}}/extensions/installed-skills.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
@@ -534,6 +573,7 @@ smoke:
       "{{root}}/extensions/status-line.ts" \
       "{{root}}/extensions/subagent.ts" "{{root}}/extensions/subagentHelpers.ts" \
       "{{root}}/extensions/memory.ts" "{{root}}/extensions/memoryHelpers.ts" \
+      "{{root}}/extensions/installed-skills.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
     bun -e '
       import { formatTurnLine } from "./extensions/status-line.ts";
@@ -626,6 +666,11 @@ smoke-rails repo='discover':
     else
       echo "smoke-rails ok (${repo})"
     fi
+
+# Manual e2e: real dotskills install -> pi-life manifest resolution.
+# Needs a dotskills checkout (DOTSKILLS_HOME or ../dotskills); not in smoke.
+test-dotskills:
+    "{{root}}/scripts/test-dotskills-install.sh"
 
 # Harness-dev: damage-control-continue (does not launch via pi-life)
 ext-damage-control:
