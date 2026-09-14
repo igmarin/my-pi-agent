@@ -392,6 +392,9 @@ launch_life() {
   # project overlay (or a wizard-written one that lacks the roles).
   if grep -qE '^(models|thinking)'$'\t' <<<"${rows}"; then
     overlay="$(PI_PROFILE_ROWS="${rows}" merge_overlay_roles "${overlay}")" || exit 2
+    # serializeOverlayEnv always emits JSON; empty stdout would silently
+    # collapse PI_OVERLAY to the empty overlay — fail closed instead.
+    [[ -n "${overlay}" ]] || exit 2
   fi
   export PI_OVERLAY="${overlay}"
   export MY_PI_AGENT_HOME="${root}"
