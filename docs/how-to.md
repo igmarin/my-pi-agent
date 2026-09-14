@@ -7,9 +7,12 @@ Domain terms are in [CONTEXT.md](../CONTEXT.md); project rules in [AGENTS.md](..
 
 ```sh
 git clone git@github.com:igmarin/my-pi-agent.git && cd my-pi-agent
+npm i -g @earendil-works/pi-coding-agent   # the pi binary itself
 just install          # bun install + symlink pi-life onto ~/.local/bin
 git config core.hooksPath .githooks   # rs-guard pre-commit (or scripts/install-hooks.sh)
 ```
+
+Skills: every allowlisted mantra/pack/tracker name resolves to a directory under `PI_SKILLS_HOME` (default `~/.agents/skills`). Install packs with dotskills, or drop/symlink any directory containing a `SKILL.md` in there. A missing allowlisted path exits 2 at launch — install your packs before the first `pi-life <life>`.
 
 Requirements: `pi` and `bun` on PATH (fail-closed, checked by `pi-life doctor`); optional `just`, `rs-guard`, `herdr` (warn only). The `DEEPSEEK_API_KEY` for rs-guard reviews lives in the environment or `~/.config/rs-guard/env` — never in a target repo.
 
@@ -50,7 +53,8 @@ Mode exclusivity is structural: solo loads the status line, chain loads the chai
 
 ```sh
 # one-time per target repo: copy the template, then edit model:/thinking: per slot
-mkdir -p .pi/fusion-harness && cp "$(dirname "$(command -v pi-life)")/../stacks/model-stack-trio.yaml" .pi/fusion-harness/
+# (pi-life is a symlink — readlink resolves it to the harness clone where stacks/ lives)
+mkdir -p .pi/fusion-harness && cp "$(dirname "$(readlink "$(command -v pi-life)")")/../stacks/model-stack-trio.yaml" .pi/fusion-harness/
 pi-life ruby fusion .pi/fusion-harness/model-stack-trio.yaml
 ```
 
@@ -202,6 +206,8 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 | `Damage-Control: <tool> blocked` | the gate caught `git push`, `reset --hard`, `clean`, a protected path (`.env`, `auth.json`), or a write outside cwd | intended behavior; ask the user how to proceed — the turn continues |
 | `Clarify gate: write/edit is blocked…` | the session hasn't accepted a prompt yet | run `/clarify` after landing the prompt you want |
 | `chain … rs-guard failed (exit 2)` | rs-guard `REQUEST_CHANGES` on the diff | address the findings, commit, re-run the chain |
+| `rs-guard: Error occurred (exit 1)` / `Request timed out` | the review provider's API is unreachable — a transport failure, not a verdict | retry; bypass with `git commit --no-verify` while the provider is down |
+| `401: incorrect_api_key` when the agent speaks | the configured pi model's key is wrong or absent | `/model` to a working provider, or fix the key in pi's config |
 | write prompt missing on first boot | no UI (print/JSON mode) | boot TUI needs a terminal; run interactively once |
 
 ## Environment variables
@@ -216,6 +222,7 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 | `PI_OVERLAY` / `PI_OVERLAY_EXISTS` | launcher → extension overlay payload / first-launch skip flag |
 | `HERDR_ENV` | set by Herdr; enables the `herdr` skill and Herdr-scoped memory journals (`HERDR_WORKSPACE_ID`/`HERDR_PANE_ID`) |
 | `DEEPSEEK_API_KEY` | rs-guard provider key (env or `~/.config/rs-guard/env`) |
+| `COGNITION_API_KEY` | Cognition SWE endpoint key for fusion stacks (`models.json` interpolates `$COGNITION_API_KEY`) |
 
 ## Harness development
 
