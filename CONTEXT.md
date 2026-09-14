@@ -19,7 +19,7 @@ Named launch config for a life: extensions, skill allowlist, tracker, provider c
 _Avoid_: theme, preset; TOML for harness config
 
 **Solo**:
-Default launch mode. The single primary Pi session with the full per-life toolset, the solo-only status-line extension, and the solo allowlist. The other modes do not load the status line. `team` keeps the solo allowlist plus the dispatcher extension; `chain` keeps the solo allowlist plus the chain extension (`/chain`, `/chain-list`, `run_chain`).
+Default launch mode. The single primary Pi session with the full per-life toolset, the solo-only status-line extension, and the solo allowlist. `team` keeps the solo allowlist plus the dispatcher extension; `chain` keeps the solo allowlist plus the chain extension (`/chain`, `/chain-list`, `run_chain`).
 _Avoid_: single, default (ambiguous; "solo" names the harness mode specifically)
 
 **Agent (persona)**:
@@ -27,7 +27,7 @@ YAML under `profiles/<life>/agents/` or shared `profiles/agents/`, then cwd `.pi
 _Avoid_: flattening pack playbooks into these files
 
 **Project overlay**:
-File in the target repo (`.pi/capabilities.yaml`) that turns capabilities on or off. Default all off; missing file ≡ all off. `bin/pi-life` parses the overlay (strict, fail closed on bad YAML) and exports the result as `PI_OVERLAY` for `extensions/capabilities.ts`, which appends a `<capabilities>` block to the system prompt at `before_agent_start` when anything is on. When all are off, the prompt is left alone — the model never sees a capability the project has not enabled. The overlay's `extra_skills` and `tracker.skill` are also turned into `--skill` arguments in the launcher so the model can actually use them, not just see them in the prompt. `bin/pi-life` resolves the script's real location via `BASH_SOURCE[0]` for the import, independent of any `MY_PI_AGENT_HOME` override. The overlay also carries optional `models:`/`thinking:` role maps (issue #15) — see Boot Config.
+File in the target repo (`.pi/capabilities.yaml`) that turns capabilities on or off. Default all off; missing file ≡ all off. `bin/pi-life` parses the overlay (strict, fail closed on bad YAML) and exports the result as `PI_OVERLAY` for `extensions/capabilities.ts`, which appends a `<capabilities>` block to the system prompt at `before_agent_start` when anything is on. When all are off, the prompt is left alone — the model never sees a capability the project has not enabled. The overlay's `extra_skills` and `tracker.skill` are also turned into `--skill` arguments in the launcher so the model can actually use them, not just see them in the prompt. The overlay also carries optional `models:`/`thinking:` role maps (issue #15) — see Boot Config.
 _Avoid_: settings, config (too broad)
 
 **Boot Config**:
@@ -79,9 +79,9 @@ Terminal multiplexer that hosts parallel work: workspaces, panes, `herdr worktre
 _Avoid_: multiplexer-as-host confusion (Herdr hosts Pi lives; Pi is the agent)
 
 **Memory**:
-Machine-local, plain-file store that survives Pi sessions and is shared with other CLIs (Devin, Cline, Grok, Codex) that read and write the same files. Root: `PI_MEMORY_HOME`, else `<skills-root>/../memory` (default `~/.agents/memory`). Layout per project id (from the git remote URL, else git toplevel, else cwd basename): `memory.md` (durable notes, markdown), `sessions/<timestamp>-<life>[-<herdr-scope>].md` (append-only journals). Under `HERDR_ENV=1` journals are additionally scoped by Herdr's `HERDR_WORKSPACE_ID`/`HERDR_PANE_ID` env vars (never by shelling out to `herdr`). `extensions/memory.ts` appends `<memory>` to the system prompt at `before_agent_start` and registers `remember`, `/remember`, `/recall`, `/session-note`; a missing store is empty memory (fail open). Only the primary session writes; chain/team/subagent children receive memory read-only in their task (`buildChildArgv`). Lives outside every repo; if a store is ever placed inside one, gitignore it. Implementation: `extensions/memory.ts` (glue) + `extensions/memoryHelpers.ts` (pure) + `extensions/memory.test.ts`.
+Machine-local, plain-file store that survives Pi sessions and that other CLIs (Devin, Cline, Grok, Codex) can read and write — the format is append-only markdown with no lock. Root: `PI_MEMORY_HOME`, else `<skills-root>/../memory` (default `~/.agents/memory`). Layout per project id (from the git remote URL, else git toplevel, else cwd basename): `memory.md` (durable notes, markdown), `sessions/<timestamp>-<life>[-<herdr-scope>].md` (append-only journals). Under `HERDR_ENV=1` journals are additionally scoped by Herdr's `HERDR_WORKSPACE_ID`/`HERDR_PANE_ID` env vars (never by shelling out to `herdr`). `extensions/memory.ts` appends `<memory>` to the system prompt at `before_agent_start` and registers `remember`, `/remember`, `/recall`, `/session-note`; a missing store is empty memory (fail open). Only the primary session writes; chain/team/subagent children receive memory read-only in their task (`buildChildArgv`). Lives outside every repo; if a store is ever placed inside one, gitignore it. Implementation: `extensions/memory.ts` (glue) + `extensions/memoryHelpers.ts` (pure) + `extensions/memory.test.ts`.
 _Avoid_: RAG, vector store, knowledge base (memory is flat markdown, no embeddings); session (that is Pi's own transcript store under `.pi/agent-sessions/`)
 
 ## Config format
 
-Harness-authored files (profiles, overlay, chains, damage-control rules) are **YAML**. Pi already ships a `yaml` parser for damage-control. One format, one dependency. Do not add TOML for those files.
+Harness-authored files (profiles, overlay, chains, damage-control rules) are **YAML**. The harness already depends on `yaml` (npm) for damage-control rules. One format, one dependency. Do not add TOML for those files.

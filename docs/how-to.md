@@ -138,7 +138,7 @@ ${PI_MEMORY_HOME:-${PI_SKILLS_HOME%/*}/memory}   # default ~/.agents/memory
 - `/session-note <note>` — append to this session's journal.
 - `/recall` — print `memory.md` and the most recent journals.
 - On launch, `memory.md` plus the 3 newest journals are appended to the system prompt as `<memory>` (capped at 24 KiB). Missing store = empty memory; launch never fails on memory.
-- Chain/team/subagent children get the same block **read-only** inside their task; only the primary writes, so parallel Herdr panes never race on the files.
+- Chain/team/subagent children get the same block **read-only** inside their task — only the primary writes. Parallel Herdr panes are separate primaries: their journals stay race-free via the `-<herdr-scope>` filename suffix, and `memory.md` notes are small single-line appends (atomic on local filesystems; not guaranteed for concurrent writers on NFS).
 - **Herdr scoping**: with `HERDR_ENV=1`, journal names gain `-<workspace-id>-<pane-id>` from Herdr's `HERDR_WORKSPACE_ID`/`HERDR_PANE_ID` env vars (fallback `-herdr`). Nothing shells out to `herdr`.
 - Keep the store out of git. If you ever point `PI_MEMORY_HOME` inside a repo, add that path to `.gitignore` or your excludesfile.
 
@@ -166,6 +166,7 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 |---|---|---|
 | exit 2, `missing required mantra …` | allowlisted skill path does not exist under `PI_SKILLS_HOME` (or `~/.agents/skills`) | create/symlink the skill dir, or set `PI_SKILLS_HOME` |
 | exit 2, `invalid YAML` | profile or overlay failed the strict parser | fix the YAML; one format, one parser (`yaml` npm) |
+| exit 2, `unknown key(s): …` | overlay has a key the parser doesn't know (e.g. a removed capability) | delete the key from `.pi/capabilities.yaml` |
 | exit 2, `unknown life` / `not a life` | typo or `ecto`/`rails-python` | use `rust`, `elixir`, `ruby`, `python` (or alias) |
 | `Unknown session` | resume/attach with an ID the local store doesn't know | start from the same repo/machine; `pi --list-sessions`; or just relaunch `pi-life <life>` |
 | `Damage-Control: <tool> blocked` | the gate caught `git push`, `reset --hard`, `clean`, a protected path (`.env`, `auth.json`), or a write outside cwd | intended behavior; ask the user how to proceed — the turn continues |
