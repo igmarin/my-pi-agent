@@ -21,6 +21,7 @@ Aliases: phoenix → elixir, rails → ruby
 
 Harness root: MY_PI_AGENT_HOME or the directory that contains this script.
 Skills root: PI_SKILLS_HOME or ~/.agents/skills.
+Memory root: PI_MEMORY_HOME or <skills-root>/../memory (default ~/.agents/memory).
 Run from the target repo. Does not require a justfile there.
 EOF
 }
@@ -182,7 +183,7 @@ read_overlay() {
   # no-overlay launch. EMPTY_OVERLAY is the canonical all-off payload; the
   # bun path below produces the same value for verification.
   if [[ ! -f "${cwd}/.pi/capabilities.yaml" ]]; then
-    printf '%s\n' '{"capabilities":{"graphify":false,"codegraph":false,"serena":false,"rs-guard":false,"obscura":false,"playwright":false},"extraSkills":[],"trackerSkill":null}'
+    printf '%s\n' '{"capabilities":{"graphify":false,"codegraph":false,"serena":false,"rs-guard":false,"obscura":false,"playwright":false,"nightshift":false},"extraSkills":[],"trackerSkill":null}'
     return 0
   fi
   (
@@ -296,7 +297,7 @@ launch_life() {
   skill_names=""
   # Issue #15: boot-config runs BEFORE capabilities so its first-launch TUI
   # can update PI_OVERLAY in the same session (handler order = -e order).
-  pi_args=(-e "${root}/extensions/damage-control-continue.ts" -e "${root}/extensions/boot-config.ts" -e "${root}/extensions/capabilities.ts" -e "${root}/extensions/clarify-gate.ts" --no-skills)
+  pi_args=(-e "${root}/extensions/damage-control-continue.ts" -e "${root}/extensions/memory.ts" -e "${root}/extensions/boot-config.ts" -e "${root}/extensions/capabilities.ts" -e "${root}/extensions/clarify-gate.ts" --no-skills)
   if [[ "${mode}" == "solo" ]]; then
     pi_args+=(-e "${root}/extensions/status-line.ts")
   fi
@@ -510,6 +511,13 @@ main() {
       # HERDR_ENV is unset, so a plain terminal is unaffected.
       if ! command -v herdr >/dev/null 2>&1; then
         doctor_warn "herdr not on PATH"
+        optional=$((optional + 1))
+      fi
+      # Shared memory store (extensions/memory.ts). Missing is fine: the
+      # extension fails open and creates it on the first /remember.
+      local memory_root="${PI_MEMORY_HOME:-$(dirname "${skills_home}")/memory}"
+      if [[ ! -d "${memory_root}" ]]; then
+        doctor_warn "memory root ${memory_root} not present (created on first /remember)"
         optional=$((optional + 1))
       fi
       local ex_rc=0

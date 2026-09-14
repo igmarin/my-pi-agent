@@ -51,7 +51,7 @@ Always-on skill overlay for every life: `i-have-adhd`, `ponytail`, `deslop`, `cl
 _Avoid_: system prompt (the prompt is how mantra is injected)
 
 **Capability**:
-Optional tool a project may enable in its overlay (graphify, codegraph, serena, rs-guard, obscura, playwright). Default off. The overlay's `extra_skills` and `tracker.skill` are also capabilities: paths to local skill directories and to a machine-local tracker skill, respectively. The overlay may not invent a fourth life.
+Optional tool a project may enable in its overlay (graphify, codegraph, serena, rs-guard, obscura, playwright, nightshift). Default off. `nightshift` writes a chain/session summary artifact into the memory store (or `RS_NIGHTSHIFT_HOME`) for unattended pickup. The overlay's `extra_skills` and `tracker.skill` are also capabilities: paths to local skill directories and to a machine-local tracker skill, respectively. The overlay may not invent a fourth life.
 _Avoid_: plugin, MCP (MCP is one way to expose a capability)
 
 **Role**:
@@ -77,6 +77,10 @@ _Avoid_: board, project (GitHub Project is a surface of the tracker)
 **Herdr**:
 Terminal multiplexer that hosts parallel work: workspaces, panes, `herdr worktree`, and `herdr agent start <name> --kind pi -- pi-life <life>` as the way to start sibling lives. Herdr is a **host**, not something the harness wraps: no Pi extension shells out to it (issue #19). The `herdr` skill is on the mantra allowlist of every life but no-ops unless `HERDR_ENV=1`, so a plain terminal is unaffected. Doctor warns (never fails) when the `herdr` binary is off PATH.
 _Avoid_: multiplexer-as-host confusion (Herdr hosts Pi lives; Pi is the agent)
+
+**Memory**:
+Machine-local, plain-file store that survives Pi sessions and is shared with other CLIs (Devin, Cline, Grok, Codex) that read and write the same files. Root: `PI_MEMORY_HOME`, else `<skills-root>/../memory` (default `~/.agents/memory`). Layout per project id (from the git remote URL, else git toplevel, else cwd basename): `memory.md` (durable notes, markdown), `sessions/<timestamp>-<life>[-<herdr-scope>].md` (append-only journals), `summaries/` (nightshift artifacts), `index.yaml` (machine index — YAML, never TOML). Under `HERDR_ENV=1` journals are additionally scoped by Herdr's workspace/worktree env vars (never by shelling out to `herdr`). `extensions/memory.ts` appends `<memory>` to the system prompt at `before_agent_start` and registers `remember`, `/remember`, `/recall`, `/session-note`; a missing store is empty memory (fail open). Only the primary session writes; chain/team/subagent children receive memory read-only in their task (`buildChildArgv`). Lives outside every repo; if a store is ever placed inside one, gitignore it. Implementation: `extensions/memory.ts` (glue) + `extensions/memoryHelpers.ts` (pure) + `extensions/memory.test.ts`.
+_Avoid_: RAG, vector store, knowledge base (memory is flat markdown, no embeddings); session (that is Pi's own transcript store under `.pi/agent-sessions/`)
 
 ## Config format
 

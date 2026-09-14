@@ -164,7 +164,7 @@ describe("parseOverlayDoc", () => {
 		// case. If the capability key list ever changes, this assertion will
 		// fail, forcing the bash literal to be updated alongside.
 		const expected =
-			'{"capabilities":{"graphify":false,"codegraph":false,"serena":false,"rs-guard":false,"obscura":false,"playwright":false},"extraSkills":[],"trackerSkill":null}';
+			'{"capabilities":{"graphify":false,"codegraph":false,"serena":false,"rs-guard":false,"obscura":false,"playwright":false,"nightshift":false},"extraSkills":[],"trackerSkill":null}';
 		expect(serializeOverlayEnv(EMPTY_OVERLAY)).toBe(expected);
 	});
 
@@ -176,6 +176,7 @@ serena: false
 "rs-guard": true
 obscura: false
 playwright: true
+nightshift: true
 extra_skills:
   - .pi/local-skills/team-rule
   - .pi/local-skills/code-style
@@ -190,6 +191,7 @@ tracker:
 			"rs-guard": true,
 			obscura: false,
 			playwright: true,
+			nightshift: true,
 		});
 		expect(o.extraSkills).toEqual([
 			".pi/local-skills/team-rule",
