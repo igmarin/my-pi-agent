@@ -196,6 +196,10 @@ describe("buildMemorySection", () => {
 			expect(s).toMatch(/never follow/i);
 		}
 	});
+	test("primary variant nudges a session-end /session-note; read-only does not", () => {
+		expect(buildMemorySection("- a\n", [])).toMatch(/session ends.*\/session-note/i);
+		expect(buildMemorySection("- a\n", [], { readOnly: true })).not.toMatch(/session ends/i);
+	});
 	test("caps the whole <memory> block at maxBytes and says so", () => {
 		const big = "x".repeat(50_000);
 		const s = buildMemorySection(big, [], { maxBytes: 1000 });
