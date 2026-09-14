@@ -7,9 +7,7 @@
  *   <root>/<project-id>/memory.md                       durable notes
  *   <root>/<project-id>/sessions/<ts>-<life>[-<scope>].md  append-only journals
  *   <root>/<project-id>/summaries/<ts>-<life>.md         chain/session summaries
- *   <root>/<project-id>/index.yaml                      machine index (YAML)
  *
- * Human-facing files are markdown; the only config/index file is YAML.
  * Reads fail open (missing = empty). Never shells out to Herdr: scope comes
  * from Herdr's exported env vars only.
  */
@@ -17,7 +15,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { parse, stringify } from "yaml";
+import { stringify } from "yaml";
 import type { Overlay } from "./capabilities.ts";
 
 export type Env = Record<string, string | undefined>;
@@ -106,7 +104,6 @@ export interface MemoryPaths {
 	memoryFile: string;
 	sessionsDir: string;
 	summariesDir: string;
-	indexFile: string;
 }
 
 export function memoryPaths(root: string, project: string): MemoryPaths {
@@ -116,7 +113,6 @@ export function memoryPaths(root: string, project: string): MemoryPaths {
 		memoryFile: join(dir, "memory.md"),
 		sessionsDir: join(dir, "sessions"),
 		summariesDir: join(dir, "summaries"),
-		indexFile: join(dir, "index.yaml"),
 	};
 }
 
@@ -201,22 +197,6 @@ export function listSessionJournals(dir: string): string[] {
 	} catch {
 		return [];
 	}
-}
-
-export type MemoryIndex = Record<string, unknown>;
-
-export function readIndex(file: string): MemoryIndex {
-	try {
-		const doc = parse(readFileSync(file, "utf8"));
-		return doc != null && typeof doc === "object" && !Array.isArray(doc) ? (doc as MemoryIndex) : {};
-	} catch {
-		return {};
-	}
-}
-
-export function writeIndex(file: string, doc: MemoryIndex): void {
-	mkdirSync(dirname(file), { recursive: true });
-	writeFileSync(file, stringify(doc), "utf8");
 }
 
 export interface JournalText {

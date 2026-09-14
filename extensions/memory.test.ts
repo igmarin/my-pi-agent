@@ -17,14 +17,12 @@ import {
 	memoryPaths,
 	projectIdFrom,
 	readMemory,
-	readIndex,
 	resolveMemoryRoot,
 	resolveSummarySink,
 	sanitizeSegment,
 	sessionJournalPath,
 	sessionScope,
 	summaryArtifactPath,
-	writeIndex,
 } from "./memoryHelpers.ts";
 import { CAPABILITY_KEYS, deserializeOverlayEnv, parseOverlayDoc, serializeOverlayEnv } from "./capabilities.ts";
 import { buildChildArgv } from "./subagentHelpers.ts";
@@ -111,7 +109,6 @@ describe("paths", () => {
 		expect(p.dir).toBe("/root/proj");
 		expect(p.memoryFile).toBe("/root/proj/memory.md");
 		expect(p.sessionsDir).toBe("/root/proj/sessions");
-		expect(p.indexFile).toBe("/root/proj/index.yaml");
 	});
 	test("sessionJournalPath: <timestamp>-<life>[-<scope>].md, millisecond timestamp", () => {
 		expect(sessionJournalPath("/root", "proj", { at, life: "ruby" })).toBe(
@@ -187,19 +184,6 @@ describe("read/append (fail-open)", () => {
 			join(dir, "20260201T000000Z-rust.md"),
 			join(dir, "20260101T000000Z-ruby.md"),
 		]);
-	});
-});
-
-describe("index.yaml", () => {
-	test("round-trips as YAML and tolerates a missing/broken file", () => {
-		const file = join(tmp, "p", "index.yaml");
-		expect(readIndex(file)).toEqual({});
-		writeIndex(file, { project: "p", remote: "git@x:o/r.git", last_session: "s.md" });
-		const doc = parse(readFileSync(file, "utf8"));
-		expect(doc).toEqual({ project: "p", remote: "git@x:o/r.git", last_session: "s.md" });
-		expect(readIndex(file)).toEqual(doc);
-		writeFileSync(file, ":\n  [\n");
-		expect(readIndex(file)).toEqual({});
 	});
 });
 
