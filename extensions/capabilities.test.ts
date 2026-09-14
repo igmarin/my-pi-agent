@@ -16,6 +16,7 @@ import {
 	CAPABILITY_KEYS,
 	deserializeOverlayEnv,
 	EMPTY_OVERLAY,
+	mergeRoleMaps,
 	overlayFromEnv,
 	OverlayParseError,
 	parseOverlayDoc,
@@ -306,6 +307,38 @@ describe("serializeOverlayEnv / deserializeOverlayEnv", () => {
 				/trackerSkill must be a non-empty string or null/,
 			);
 		}
+	});
+});
+
+describe("mergeRoleMaps", () => {
+	test("overlay wins per role; profile base fills the gaps", () => {
+		const o = parseOverlayDoc({
+			models: { builder: "overlay/builder" },
+			thinking: { builder: "low" },
+		});
+		const merged = mergeRoleMaps(
+			o,
+			{ builder: "profile/builder", reviewer: "profile/reviewer" },
+			{ builder: "max", planner: "high" },
+		);
+		expect(merged.models).toEqual({
+			builder: "overlay/builder",
+			reviewer: "profile/reviewer",
+		});
+		expect(merged.thinking).toEqual({ builder: "low", planner: "high" });
+	});
+
+	test("profile-only maps merge into a role-less overlay", () => {
+		const merged = mergeRoleMaps(EMPTY_OVERLAY, { planner: "p/m" }, {});
+		expect(merged.models).toEqual({ planner: "p/m" });
+		expect(merged.thinking).toBeUndefined();
+	});
+
+	test("empty base leaves the overlay untouched", () => {
+		const o = parseOverlayDoc({ models: { solo: "m/x" } });
+		const merged = mergeRoleMaps(o);
+		expect(merged.models).toEqual({ solo: "m/x" });
+		expect(mergeRoleMaps(EMPTY_OVERLAY)).toEqual(EMPTY_OVERLAY);
 	});
 });
 

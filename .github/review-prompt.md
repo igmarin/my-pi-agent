@@ -102,7 +102,6 @@ This is a TypeScript/Bun + bash harness (`pi-life`), not a Rails app. Proof is `
 
 **Do not flag as missing:**
 
-- Overlay merge (#11) — tracked issue, not this diff unless the diff claims to ship it.
 - RSpec, Rails test layout, `quote()`/`env()` Just functions (verify with `just --dry-run` before claiming Just cannot do it).
 - Files under `graphify-out/`, `node_modules/`, `vendor/` (see `.rs-guardignore`).
 

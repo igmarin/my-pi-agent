@@ -20,6 +20,7 @@ import bootConfig, {
 } from "./boot-config.ts";
 import {
 	CAPABILITY_KEYS,
+	deserializeOverlayEnv,
 	isThinkingLevelName,
 	parseOverlayDoc,
 	serializeOverlayEnv,
@@ -260,6 +261,51 @@ describe("boot-config wizard flow", () => {
 		expect(overlay.thinking).toBeUndefined();
 		expect(process.env.PI_OVERLAY_EXISTS).toBe("1");
 		expect(process.env.PI_OVERLAY).toContain('"graphify":false');
+	});
+
+	test("save keeps launcher-merged role maps under the wizard's selections", async () => {
+		// The launcher merges profile role maps into PI_OVERLAY before the
+		// wizard runs; the save must not drop them.
+		process.env.PI_OVERLAY = serializeOverlayEnv({
+			capabilities: Object.freeze({}) as never,
+			extraSkills: [],
+			trackerSkill: null,
+			models: { planner: "profile-model" },
+			thinking: { builder: "high" },
+		});
+		const handler = loadHandler();
+		await handler(
+			{},
+			makeCtx({ confirm: async () => true }, cwd) as never,
+		);
+		const merged = deserializeOverlayEnv(process.env.PI_OVERLAY ?? "");
+		expect(merged.models?.planner).toBe("profile-model");
+		expect(merged.thinking?.builder).toBe("high");
+	});
+
+	test("wizard values win over launcher-merged role maps", async () => {
+		process.env.PI_OVERLAY = serializeOverlayEnv({
+			capabilities: Object.freeze({}) as never,
+			extraSkills: [],
+			trackerSkill: null,
+			models: { planner: "prior-model" },
+		});
+		const handler = loadHandler();
+		await handler(
+			{},
+			makeCtx(
+				{
+					confirm: async () => true,
+					input: async (title) =>
+						title.includes("planner") ? "wiz-model" : "",
+					select: async (title) =>
+						title.includes("Thinking") ? "(none)" : "off",
+				},
+				cwd,
+			) as never,
+		);
+		const merged = deserializeOverlayEnv(process.env.PI_OVERLAY ?? "");
+		expect(merged.models?.planner).toBe("wiz-model");
 	});
 
 	test("rejection does not write the overlay", async () => {

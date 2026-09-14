@@ -34,6 +34,8 @@ import {
 	CAPABILITY_KEYS,
 	type CapabilityKey,
 	isThinkingLevelName,
+	mergeRoleMaps,
+	overlayFromEnv,
 	type Overlay,
 	ROLE_KEYS,
 	serializeOverlayEnv,
@@ -222,7 +224,14 @@ export default function (pi: ExtensionAPI) {
 			models: configured.models,
 			thinking: configured.thinking,
 		};
-		process.env.PI_OVERLAY = serializeOverlayEnv(overlay);
+		// The launcher's PI_OVERLAY already carries profile role maps merged
+		// in — keep them as the base under whatever the wizard just saved so
+		// first-launch sessions don't lose child-dispatch defaults. A malformed
+		// env (standalone extension load) just means no base.
+		const prior = overlayFromEnv();
+		process.env.PI_OVERLAY = serializeOverlayEnv(
+			mergeRoleMaps(overlay, prior?.models ?? {}, prior?.thinking ?? {}),
+		);
 		process.env.PI_OVERLAY_EXISTS = "1";
 
 		// Apply solo model/thinking immediately. Model resolution needs the

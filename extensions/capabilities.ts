@@ -301,6 +301,27 @@ export function serializeOverlayEnv(overlay: Overlay): string {
 }
 
 /**
+ * Merge profile-level `models:`/`thinking:` role maps under the overlay's:
+ * overlay entries win per role, profile entries fill the gaps. The launcher
+ * calls this so PI_OVERLAY carries the resolved role maps and children
+ * dispatch from it (live merge). Keys absent from both sides stay `undefined`
+ * so the fast-path payload stays stable.
+ */
+export function mergeRoleMaps(
+	overlay: Overlay,
+	baseModels: Record<string, string> = {},
+	baseThinking: Record<string, string> = {},
+): Overlay {
+	const models = { ...baseModels, ...(overlay.models ?? {}) };
+	const thinking = { ...baseThinking, ...(overlay.thinking ?? {}) };
+	return {
+		...overlay,
+		models: Object.keys(models).length ? models : undefined,
+		thinking: Object.keys(thinking).length ? thinking : undefined,
+	};
+}
+
+/**
  * Inverse of `serializeOverlayEnv`. The extension calls this at session start.
  * Throws OverlayParseError on a malformed payload (should never happen because
  * the launcher wrote it; defensive only).
