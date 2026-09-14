@@ -185,7 +185,7 @@ pi-life doctor           # machine + cwd health; prints the resolved overlay
 pi-life doctor ruby      # + checks ruby pack paths
 ```
 
-`doctor` fails closed on missing `pi`/`bun` or missing mantra/tracker skill paths; warns on missing packs, `just`, `rs-guard`, `herdr`, an absent memory root (`~/.agents/memory`, created on first `/remember`), and a missing/incomplete `git config --get core.excludesfile` (needs: `node_modules`, `.pi/agent-sessions/`, `.env`, `graphify-out/`, `.codegraph/`).
+`doctor` fails closed on missing `pi`/`bun` or missing mantra/tracker skill paths; warns on missing packs, `just`, `rs-guard`, `ocr` (or `npx` to run it on demand), `herdr`, an absent memory root (`~/.agents/memory`, created on first `/remember`), and a missing/incomplete `git config --get core.excludesfile` (needs: `node_modules`, `.pi/agent-sessions/`, `.env`, `graphify-out/`, `.codegraph/`).
 
 Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life ruby`. The `herdr` skill is allowlisted everywhere but no-ops unless `HERDR_ENV=1`.
 

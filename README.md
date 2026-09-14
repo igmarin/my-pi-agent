@@ -66,6 +66,14 @@ just ext-damage-control # continue-variant safety rules
 
 This repository uses [rs-guard](https://github.com/nebulaideas/rs-guard) for automated code review, both as a pre-commit hook and as a GitHub Actions workflow on pull requests.
 
+[open-code-review](https://github.com/alibaba/open-code-review) (`ocr`) is the default interactive review tool. No global npm install needed — run it on demand:
+
+```sh
+npx -y @alibaba-group/open-code-review
+```
+
+`pi-life doctor` warns when neither `ocr` nor `npx` is available.
+
 ### Pre-commit hook
 
 The hook is in `.githooks/pre-commit`. Activate it for this clone:
