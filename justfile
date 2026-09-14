@@ -65,11 +65,10 @@ smoke:
     python_out="$("${bin}" --dry-run python 2>"${tmp}/python.err")"
 
     case "${rust_out}" in
-      pi\ -e\ *damage-control-continue.ts\ -e\ *memory.ts\ *capabilities.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
+      pi\ -e\ *damage-control-continue.ts\ *capabilities.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
       *) echo "INV-skills: rust argv must include -e damage-control-continue -e capabilities.ts -e clarify-gate.ts --no-skills: ${rust_out}" >&2; exit 1 ;;
     esac
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/damage-control-continue.ts"
-    echo "${rust_out}" | grep -q -- "-e ${root}/extensions/memory.ts"
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/boot-config.ts"
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/capabilities.ts"
     echo "${rust_out}" | grep -q -- "-e ${root}/extensions/clarify-gate.ts"
@@ -105,6 +104,7 @@ smoke:
     ! grep -q -- "fusion-harness.ts" <<<"${rust_solo_out}"
     ! grep -q -- "fusion-harness.ts" <<<"${rust_chain_out}"
     ! grep -q -- "fusion-harness.ts" <<<"${rust_team_out}"
+    ! grep -q -- "memory.ts" <<<"${fusion_out}"
     status=0
     "${bin}" --dry-run rust fusion >/dev/null 2>"${tmp}/fusion-noarg.err" || status=$?
     test "${status}" -eq 2
@@ -130,6 +130,11 @@ smoke:
     echo "${python_out}" | grep -q -- "--skill ${tmp}/herdr"
     ! grep -q -- "rails-agent-skills" <<<"${python_out}"
     echo "${python_out}" | grep -q -- "--skill ${tmp}/github-issue"
+    # Issue #76: memory extension is gone; no life/mode may load it.
+    for out in "${rust_out}" "${elixir_out}" "${ruby_out}" "${python_out}" \
+               "${rust_solo_out}" "${rust_chain_out}" "${rust_team_out}"; do
+      ! grep -q -- "memory.ts" <<<"${out}"
+    done
 
     status=0
     out="$("${bin}" rails-python 2>&1)" || status=$?
@@ -649,7 +654,7 @@ smoke:
       }
       console.log("agent-chain default chain ok");
     '
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/agent-team.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts" "{{root}}/extensions/installed-skills.test.ts" "{{root}}/extensions/fusion-harness/tests" "{{root}}/scripts/skills-bootstrap.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/agent-team.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/installed-skills.test.ts" "{{root}}/extensions/fusion-harness/tests" "{{root}}/scripts/skills-bootstrap.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \
@@ -660,7 +665,6 @@ smoke:
       "{{root}}/extensions/agent-team.ts" \
       "{{root}}/extensions/status-line.ts" \
       "{{root}}/extensions/subagent.ts" "{{root}}/extensions/subagentHelpers.ts" \
-      "{{root}}/extensions/memory.ts" "{{root}}/extensions/memoryHelpers.ts" \
       "{{root}}/extensions/installed-skills.ts" \
       "{{root}}/extensions/fusion-harness/fusion-harness.ts" \
       --outdir="${TMPDIR:-/tmp}/mpa-ext-smoke" --packages=external
@@ -743,7 +747,7 @@ smoke-rails repo='discover':
     done
     out="$(cd "${repo}" && PI_SKILLS_HOME="${tmp}" "${bin}" --dry-run ruby 2>"${tmp}/err")"
     case "${out}" in
-      pi\ -e\ *damage-control-continue.ts\ -e\ *memory.ts\ *capabilities.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
+      pi\ -e\ *damage-control-continue.ts\ *capabilities.ts\ *clarify-gate.ts\ --no-skills\ *) ;;
       *) echo "smoke-rails: INV-skills argv wrong: ${out}" >&2; exit 1 ;;
     esac
     echo "${out}" | grep -q -- "--skill ${tmp}/ruby-core-skills"
@@ -751,6 +755,7 @@ smoke-rails repo='discover':
     echo "${out}" | grep -q -- "--skill ${tmp}/github-issue"
     ! grep -q -- "elixir-phoenix-skills" <<<"${out}"
     ! grep -q -- "python" <<<"${out}"
+    ! grep -q -- "memory.ts" <<<"${out}"
     if [[ -n "${fixture}" ]]; then
       echo "smoke-rails ok (synthetic fixture; no local Rails repo found)"
     else
