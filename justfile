@@ -419,6 +419,28 @@ smoke:
       *"--model openrouter/profile-default"*)
         echo "overlay must override the profile solo model, got: ${solo_override_out}" >&2; exit 1 ;;
     esac
+    # (n) Live merge: profile role maps reach PI_OVERLAY (the payload children
+    # dispatch from) even with no project overlay; an overlay entry wins.
+    merge_life="$(mktemp -d)"
+    mkdir -p "${merge_life}/profiles" "${merge_life}/i-have-adhd"
+    printf '%s\n' '# i-have-adhd' >"${merge_life}/i-have-adhd/SKILL.md"
+    printf '%s\n' 'life: python' 'tracker: none' 'packs: []' 'mantra: [i-have-adhd]' \
+      'models:' '  planner: openrouter/profile-planner' '  builder: openrouter/profile-builder' \
+      'thinking:' '  planner: high' \
+      >"${merge_life}/profiles/python.yaml"
+    (cd "${merge_life}" && MY_PI_AGENT_HOME="${merge_life}" PI_SKILLS_HOME="${merge_life}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/merge.err")
+    case "$(grep '^PI_OVERLAY=' "${tmp}/merge.err")" in
+      *'"planner":"openrouter/profile-planner"'*'"builder":"openrouter/profile-builder"'*'"thinking":{"planner":"high"}'*) ;;
+      *) echo "expected profile role maps merged into PI_OVERLAY, got: $(cat "${tmp}/merge.err")" >&2; exit 1 ;;
+    esac
+    mkdir -p "${merge_life}/.pi"
+    printf '%s\n' 'models:' '  planner: openrouter/overlay-planner' >"${merge_life}/.pi/capabilities.yaml"
+    (cd "${merge_life}" && MY_PI_AGENT_HOME="${merge_life}" PI_SKILLS_HOME="${merge_life}" "${bin}" --dry-run python >/dev/null 2>"${tmp}/merge2.err")
+    case "$(grep '^PI_OVERLAY=' "${tmp}/merge2.err")" in
+      *'"planner":"openrouter/overlay-planner"'*'"builder":"openrouter/profile-builder"'*) ;;
+      *) echo "expected overlay win + profile gap-fill, got: $(cat "${tmp}/merge2.err")" >&2; exit 1 ;;
+    esac
+    rm -rf "${merge_life}"
     # (m) Issue #15: malformed profile models -> exit 2 (fail closed).
     badmodels="$(mktemp -d)"
     mkdir -p "${badmodels}/profiles"

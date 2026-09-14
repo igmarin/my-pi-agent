@@ -55,7 +55,7 @@ Optional tool a project may enable in its overlay (graphify, codegraph, serena, 
 _Avoid_: plugin, MCP (MCP is one way to expose a capability)
 
 **Role**:
-Chain/team seat a model or thinking level can be assigned to: `solo` (primary session), `planner`, `builder`, `reviewer`, `researcher`. Configured under optional `models:`/`thinking:` keys in `profiles/<life>.yaml` (harness defaults) and `.pi/capabilities.yaml` (per-project override). The launcher passes `solo` into `pi --model`/`--thinking`; chain/team/subagent children dispatch with the overlay's model/thinking keyed on the child's agent name, falling back to the primary's current model. Profile defaults reach children only when saved into the overlay (live merge is not wired, #11).
+Chain/team seat a model or thinking level can be assigned to: `solo` (primary session), `planner`, `builder`, `reviewer`, `researcher`. Configured under optional `models:`/`thinking:` keys in `profiles/<life>.yaml` (harness defaults) and `.pi/capabilities.yaml` (per-project override). The launcher passes `solo` into `pi --model`/`--thinking` and merges the profile's role maps under the overlay's (overlay wins per role) into `PI_OVERLAY`; chain/team/subagent children dispatch from that merged payload keyed on the child's agent name, falling back to the primary's current model.
 _Avoid_: agent (a role is a seat, an agent is a persona file)
 
 **Chain**:

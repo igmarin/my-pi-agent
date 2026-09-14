@@ -280,6 +280,29 @@ overlay_extras() {
   )
 }
 
+# Issue #11 live merge: fold profile models:/thinking: role maps (passed as
+# PI_PROFILE_ROWS, the raw read_profile TSV) under the overlay payload on
+# argv — the overlay wins per role. Prints the merged JSON for PI_OVERLAY.
+merge_overlay_roles() {
+  local script
+  script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/extensions/capabilities.ts"
+  (
+    cd "$(dirname "${script}")/.."
+    OVERLAY_MODULE="${script}" bun -e '
+      const mod = await import(process.env.OVERLAY_MODULE);
+      const { deserializeOverlayEnv, serializeOverlayEnv, mergeRoleMaps } = mod;
+      const overlay = deserializeOverlayEnv(process.argv[1]);
+      const models = {}, thinking = {};
+      for (const line of (process.env.PI_PROFILE_ROWS || "").split("\n")) {
+        const [kind, role, value] = line.split("\t");
+        if (kind === "models") models[role] = value;
+        if (kind === "thinking") thinking[role] = value;
+      }
+      process.stdout.write(serializeOverlayEnv(mergeRoleMaps(overlay, models, thinking)) + "\n");
+    ' "$1"
+  )
+}
+
 launch_life() {
   local root="$1" life="$2" mode="$3" dry_run="$4"
   local profile="${root}/profiles/${life}.yaml"
@@ -334,6 +357,12 @@ launch_life() {
   # extension as PI_OVERLAY. Missing file = empty overlay; bad YAML = exit 2.
   local overlay
   overlay="$(read_overlay "${PWD}")" || exit 2
+  # Live merge: profile models:/thinking: become the base under the overlay's
+  # role maps so PI_OVERLAY carries child-dispatch defaults even with no
+  # project overlay (or a wizard-written one that lacks the roles).
+  if grep -qE '^(models|thinking)'$'\t' <<<"${rows}"; then
+    overlay="$(PI_PROFILE_ROWS="${rows}" merge_overlay_roles "${overlay}")" || exit 2
+  fi
   export PI_OVERLAY="${overlay}"
   export MY_PI_AGENT_HOME="${root}"
   export PI_LIFE="${life}"
@@ -382,6 +411,9 @@ launch_life() {
       printf ' %q' "${arg}"
     done
     printf '\n'
+    # Diagnostics on stderr (doctor's convention): the resolved overlay env
+    # is part of the launch contract — children dispatch models from it.
+    printf 'PI_OVERLAY=%s\n' "${PI_OVERLAY}" >&2
     return 0
   fi
 

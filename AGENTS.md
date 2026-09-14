@@ -22,7 +22,7 @@ Pointers (load when the branch fires):
 - Memory: `extensions/memory.ts` + `memoryHelpers.ts`; store at `PI_MEMORY_HOME` or `<skills-root>/../memory` (default `~/.agents/memory`; markdown, no lock). Primary writes, children read-only. Never inside a repo; never shell out to Herdr for scope.
 - Harness tasks: `bun` + `just`. Never add a `justfile` to a target repo. Proof: `just smoke` (no tokengate, no mlx).
 - Herdr is a host: `herdr agent start <name> --kind pi -- pi-life <life>`. Do not wrap Herdr in a Pi extension.
-- Boot config: first launch with no `.pi/capabilities.yaml` runs the `extensions/boot-config.ts` wizard (skips when `PI_OVERLAY_EXISTS=1` or no UI). Overlay `models.solo`/`thinking.solo` override profile `models:`/`thinking:` defaults into `pi --model`/`--thinking`; chain/team/subagent children dispatch with the overlay's per-role model/thinking keyed on the child's agent name (planner/builder/reviewer/researcher), falling back to the primary's current model.
+- Boot config: first launch with no `.pi/capabilities.yaml` runs the `extensions/boot-config.ts` wizard (skips when `PI_OVERLAY_EXISTS=1` or no UI). Overlay `models.solo`/`thinking.solo` override profile `models:`/`thinking:` defaults into `pi --model`/`--thinking`; chain/team/subagent children dispatch with the merged per-role model/thinking (profile defaults under overlay overrides) keyed on the child's agent name (planner/builder/reviewer/researcher), falling back to the primary's current model.
 - Ponytail: shortest working code. `ponytail-review` the staged diff before every push; cut findings first.
 - Secrets stay in the environment or `~/.config/rs-guard/env`. Never commit keys, `auth.json`, or `.env`, and never read them from a target repo.
 
@@ -33,10 +33,6 @@ rs-guard 1.8.3 reviews **staged** files on commit (`.githooks/pre-commit`) and e
 Pre-commit: `REQUEST_CHANGES` is exit 2 and **aborts the commit**. `[Critical]` / `[Security]` / `NEGATIVE` must block. `[Important]` below the threshold is COMMENT, not a merge gate. Bypass: `git commit --no-verify`.
 
 Provider: DeepSeek (`DEEPSEEK_API_KEY`). Prefer `deepseek-v4-flash` for local reviews.
-
-## Not shipped — do not implement or review as if present
-
-Overlay merge (#11) — live merge of profile `models:`/`thinking:` into a saved overlay (children dispatch from the overlay only).
 
 ## Docs
 

@@ -67,7 +67,7 @@ thinking:
 
 - Capabilities gate the `<capabilities>` system-prompt block; the model never sees a capability that is off.
 - `extra_skills` and `tracker.skill` become `--skill` argv entries so the model can actually use them.
-- `models`/`thinking` roles: `solo` (primary `--model`/`--thinking`) and `planner`/`builder`/`reviewer`/`researcher` — chain/team/subagent children dispatch with the entry keyed on the **child's agent name**, falling back to the primary's current model when the agent has no entry.
+- `models`/`thinking` roles: `solo` (primary `--model`/`--thinking`) and `planner`/`builder`/`reviewer`/`researcher` — chain/team/subagent children dispatch with the entry keyed on the **child's agent name**, falling back to the primary's current model when the agent has no entry. Profile-level `models:`/`thinking:` merge under the overlay's as defaults (overlay wins per role), so profile defaults reach children without repeating them in every project.
 - Hand-edit freely; the launcher re-parses and re-validates every launch.
 
 ## Per-project agents, chains, teams
