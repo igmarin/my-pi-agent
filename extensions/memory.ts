@@ -21,6 +21,7 @@ import {
 	appendDurableNote,
 	appendJournal,
 	loadMemoryContext,
+	memoryPaths,
 	projectId,
 	resolveMemoryRoot,
 	sessionJournalPath,
@@ -53,7 +54,7 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	function memoryFile(): string {
-		return loadMemoryContext({ root, project, recent: 0 }).paths.memoryFile;
+		return memoryPaths(root, project).memoryFile;
 	}
 
 	pi.on("before_agent_start", async (event, ctx) => {

@@ -92,16 +92,16 @@ describe("projectIdFrom", () => {
 describe("sessionScope", () => {
 	test("outside Herdr there is no scope", () => {
 		expect(sessionScope({})).toBeUndefined();
-		expect(sessionScope({ HERDR_WORKSPACE: "ws" })).toBeUndefined();
+		expect(sessionScope({ HERDR_WORKSPACE_ID: "ws" })).toBeUndefined();
 	});
-	test("inside Herdr: workspace and worktree basename, sanitized", () => {
-		expect(sessionScope({ HERDR_ENV: "1", HERDR_WORKSPACE: "my ws", HERDR_WORKTREE: "/w/feat/x" })).toBe(
-			"my-ws-x",
+	test("inside Herdr: workspace and pane ids, sanitized", () => {
+		expect(sessionScope({ HERDR_ENV: "1", HERDR_WORKSPACE_ID: "my ws", HERDR_PANE_ID: "pane/7" })).toBe(
+			"my-ws-pane-7",
 		);
-		expect(sessionScope({ HERDR_ENV: "1", HERDR_WORKSPACE: "ws" })).toBe("ws");
-		expect(sessionScope({ HERDR_ENV: "1", HERDR_WORKTREE: "/w/wt" })).toBe("wt");
+		expect(sessionScope({ HERDR_ENV: "1", HERDR_WORKSPACE_ID: "ws" })).toBe("ws");
+		expect(sessionScope({ HERDR_ENV: "1", HERDR_PANE_ID: "p9" })).toBe("p9");
 	});
-	test("inside Herdr without workspace vars still namespaces", () => {
+	test("inside Herdr without id vars still namespaces", () => {
 		expect(sessionScope({ HERDR_ENV: "1" })).toBe("herdr");
 	});
 });
@@ -114,18 +114,21 @@ describe("paths", () => {
 		expect(p.sessionsDir).toBe("/root/proj/sessions");
 		expect(p.indexFile).toBe("/root/proj/index.yaml");
 	});
-	test("sessionJournalPath: <timestamp>-<life>[-<scope>].md", () => {
+	test("sessionJournalPath: <timestamp>-<life>[-<scope>].md, millisecond timestamp", () => {
 		expect(sessionJournalPath("/root", "proj", { at, life: "ruby" })).toBe(
-			"/root/proj/sessions/20260914T010203Z-ruby.md",
+			"/root/proj/sessions/20260914T010203000Z-ruby.md",
+		);
+		expect(sessionJournalPath("/root", "proj", { at: new Date("2026-09-14T01:02:03.456Z"), life: "ruby" })).toBe(
+			"/root/proj/sessions/20260914T010203456Z-ruby.md",
 		);
 		expect(sessionJournalPath("/root", "proj", { at, life: "ruby", scope: "ws-x" })).toBe(
-			"/root/proj/sessions/20260914T010203Z-ruby-ws-x.md",
+			"/root/proj/sessions/20260914T010203000Z-ruby-ws-x.md",
 		);
-		expect(sessionJournalPath("/root", "proj", { at })).toBe("/root/proj/sessions/20260914T010203Z-pi.md");
+		expect(sessionJournalPath("/root", "proj", { at })).toBe("/root/proj/sessions/20260914T010203000Z-pi.md");
 	});
 	test("summaryArtifactPath under the sink", () => {
 		expect(summaryArtifactPath("/sink", "proj", { at, life: "rust" })).toBe(
-			"/sink/proj/summaries/20260914T010203Z-rust.md",
+			"/sink/proj/summaries/20260914T010203000Z-rust.md",
 		);
 	});
 	test("resolveSummarySink prefers RS_NIGHTSHIFT_HOME", () => {
@@ -152,6 +155,16 @@ describe("read/append (fail-open)", () => {
 		const file = join(tmp, "p", "memory.md");
 		appendDurableNote(file, "   ", at);
 		expect(existsSync(file)).toBe(false);
+	});
+	test("appendDurableNote never truncates existing content", () => {
+		const file = join(tmp, "p", "memory.md");
+		mkdirSync(join(tmp, "p"), { recursive: true });
+		writeFileSync(file, "# Memory\n\n- 2026-01-01 first\n", "utf8");
+		appendDurableNote(file, "second", at);
+		const text = readFileSync(file, "utf8");
+		expect(text).toContain("first");
+		expect(text).toContain("second");
+		expect(text.match(/^# Memory/gm)?.length).toBe(1);
 	});
 	test("appendJournal writes a titled journal and timestamped entries", () => {
 		const file = join(tmp, "p", "sessions", "x.md");
@@ -209,11 +222,21 @@ describe("buildMemorySection", () => {
 		expect(ro).toContain("read-only");
 		expect(ro).toContain("do not attempt to write");
 	});
-	test("caps total size and says so", () => {
+	test("marks store content as untrusted data, never instructions", () => {
+		for (const ro of [false, true]) {
+			const s = buildMemorySection("- a\n", [], { readOnly: ro });
+			expect(s).toMatch(/untrusted data/i);
+			expect(s).toMatch(/never follow/i);
+		}
+	});
+	test("caps the whole <memory> block at maxBytes and says so", () => {
 		const big = "x".repeat(50_000);
 		const s = buildMemorySection(big, [], { maxBytes: 1000 });
-		expect(Buffer.byteLength(s, "utf8")).toBeLessThan(1500);
+		expect(Buffer.byteLength(s, "utf8")).toBeLessThanOrEqual(1000);
 		expect(s).toContain("[memory truncated");
+	});
+	test("a cap smaller than the wrapper yields no block", () => {
+		expect(buildMemorySection("x".repeat(50_000), [], { maxBytes: 10 })).toBe("");
 	});
 });
 
@@ -363,9 +386,17 @@ describe("nightshift capability", () => {
 		const sink = join(tmp, "ns");
 		const file = writeChainSummary(
 			{ RS_NIGHTSHIFT_HOME: sink, PI_LIFE: "ruby" },
-			{ project: "p", kind: "chain", name: "c", output: "done", at: new Date("2026-09-14T01:02:03Z") },
+			{ project: "p", kind: "chain", name: "c", output: "done", at },
 		);
-		expect(file).toBe(join(sink, "p", "summaries", "20260914T010203Z-ruby.md"));
+		expect(file).toBe(join(sink, "p", "summaries", "20260914T010203000Z-ruby.md"));
 		expect(readFileSync(file, "utf8")).toContain("name: c");
+	});
+	test("same-timestamp summaries never overwrite: a -N suffix keeps both", () => {
+		const env = { RS_NIGHTSHIFT_HOME: join(tmp, "ns"), PI_LIFE: "ruby" };
+		const a = writeChainSummary(env, { project: "p", kind: "chain", name: "a", output: "first", at });
+		const b = writeChainSummary(env, { project: "p", kind: "chain", name: "b", output: "second", at });
+		expect(a).not.toBe(b);
+		expect(readFileSync(a, "utf8")).toContain("first");
+		expect(readFileSync(b, "utf8")).toContain("second");
 	});
 });

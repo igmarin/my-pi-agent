@@ -141,7 +141,7 @@ ${PI_MEMORY_HOME:-${PI_SKILLS_HOME%/*}/memory}   # default ~/.agents/memory
 - `/recall` — print `memory.md` and the most recent journals.
 - On launch, `memory.md` plus the 3 newest journals are appended to the system prompt as `<memory>` (capped at 24 KiB). Missing store = empty memory; launch never fails on memory.
 - Chain/team/subagent children get the same block **read-only** inside their task; only the primary writes, so parallel Herdr panes never race on the files.
-- **Herdr scoping**: with `HERDR_ENV=1`, journal names gain `-<workspace>-<worktree>` from Herdr's `HERDR_WORKSPACE`/`HERDR_WORKTREE` env vars (fallback `-herdr`). Nothing shells out to `herdr`.
+- **Herdr scoping**: with `HERDR_ENV=1`, journal names gain `-<workspace-id>-<pane-id>` from Herdr's `HERDR_WORKSPACE_ID`/`HERDR_PANE_ID` env vars (fallback `-herdr`). Nothing shells out to `herdr`.
 - **nightshift** capability (overlay `nightshift: true`): when a chain finishes, its output is written as a markdown summary with YAML front matter under `summaries/` — or under `$RS_NIGHTSHIFT_HOME/<project-id>/summaries/` when set — for unattended pickup.
 - Keep the store out of git. If you ever point `PI_MEMORY_HOME` inside a repo, add that path to `.gitignore` or your excludesfile.
 
@@ -188,7 +188,7 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 | `PI_TEAM` | active team in team mode |
 | `PI_LIFE` | exported to children; agent/chain discovery uses it |
 | `PI_OVERLAY` / `PI_OVERLAY_EXISTS` | launcher → extension overlay payload / first-launch skip flag |
-| `HERDR_ENV` | set by Herdr; enables the `herdr` skill and Herdr-scoped memory journals (`HERDR_WORKSPACE`/`HERDR_WORKTREE`) |
+| `HERDR_ENV` | set by Herdr; enables the `herdr` skill and Herdr-scoped memory journals (`HERDR_WORKSPACE_ID`/`HERDR_PANE_ID`) |
 | `DEEPSEEK_API_KEY` | rs-guard provider key (env or `~/.config/rs-guard/env`) |
 
 ## Harness development
