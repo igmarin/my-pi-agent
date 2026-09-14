@@ -88,6 +88,16 @@ smoke:
     "${bin}" --dry-run rust fusion "${tmp}/no-such-stack.yaml" >/dev/null 2>"${tmp}/fusion-nofile.err" || status=$?
     test "${status}" -eq 2
     grep -q 'fusion stack not found' "${tmp}/fusion-nofile.err"
+    # cognition/* slots without COGNITION_API_KEY warn (advisory, still launches)
+    fusion_cog_out="$(env -u COGNITION_API_KEY "${bin}" --dry-run rust fusion "${root}/stacks/model-stack-cognition.yaml" 2>"${tmp}/fusion-cog.err")"
+    echo "${fusion_cog_out}" | grep -q -- "--fh-config ${root}/stacks/model-stack-cognition.yaml"
+    grep -q 'COGNITION_API_KEY is unset' "${tmp}/fusion-cog.err"
+    COGNITION_API_KEY=dummy "${bin}" --dry-run rust fusion "${root}/stacks/model-stack-cognition.yaml" >/dev/null 2>"${tmp}/fusion-cog-ok.err"
+    ! grep -q 'COGNITION_API_KEY' "${tmp}/fusion-cog-ok.err"
+    # a cognition/ mention in a comment must not warn — only a model: line does
+    printf '%s\n' '# model: cognition/swe-x is a comment, not a slot' '- name: a' '  model: openai/x' '  architect: true' '- name: b' '  model: anthropic/y' '  primary: true' >"${tmp}/stack-comment.yaml"
+    env -u COGNITION_API_KEY "${bin}" --dry-run rust fusion "${tmp}/stack-comment.yaml" >/dev/null 2>"${tmp}/fusion-cog-comment.err"
+    ! grep -q 'COGNITION_API_KEY' "${tmp}/fusion-cog-comment.err"
 
     echo "${elixir_out}" | grep -q -- "--skill ${tmp}/elixir-phoenix-skills"
     ! grep -q -- "github-issue" <<<"${elixir_out}"
