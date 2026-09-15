@@ -34,7 +34,7 @@ Optional GraphQL or REST skill set loaded on a vida. Not a fifth vida.
 _Avoid_: calling GraphQL/REST a vida
 
 **Profile**:
-Named launch config for a vida: extensions, skill allowlist, tracker, provider class, model policy. Stored as YAML under `profiles/<vida>.yaml`. Launch is `-e extensions/damage-control-continue.ts` then `--no-skills` then allowlisted `--skill`. **Solo mode also appends** `-e extensions/status-line.ts` (turn counter in the footer; chain/team do not load it). Invalid YAML, a missing mantra path, or a missing configured tracker path fails closed (exit 2). Omit tracker (elixir) or `tracker: none` = no tracker skill. Missing packs warn. Pack names resolve through `<skills-home>/.dotskills-manifest.json` (`<pack>:<name>` identities, written by the dotskills installer) when the manifest exists — a malformed manifest or a missing installed skill fails closed; a pack with no manifest entries falls back to `<skills-home>/<name>`. The profile's allowlist IS the INV-skills contract (the invariant skill set: damage-control gate + `--no-skills` + only allowlisted `--skill` paths) — launch fails closed when it can't be honored, and rs-guard reviews enforce it.
+Named launch config for a vida: extensions, skill allowlist, tracker, provider class, model policy. Stored as YAML under `profiles/<vida>.yaml`. Shipped files write `vida:`; the parser also accepts `life:`; both set to different values exit 2. Launch is `-e extensions/damage-control-continue.ts` then `--no-skills` then allowlisted `--skill`. **Solo mode also appends** `-e extensions/status-line.ts` (turn counter in the footer; chain/team do not load it). Invalid YAML, a missing mantra path, or a missing configured tracker path fails closed (exit 2). Omit tracker (elixir) or `tracker: none` = no tracker skill. Missing packs warn. Pack names resolve through `<skills-home>/.dotskills-manifest.json` (`<pack>:<name>` identities, written by the dotskills installer) when the manifest exists — a malformed manifest or a missing installed skill fails closed; a pack with no manifest entries falls back to `<skills-home>/<name>`. The profile's allowlist IS the INV-skills contract (the invariant skill set: damage-control gate + `--no-skills` + only allowlisted `--skill` paths) — launch fails closed when it can't be honored, and rs-guard reviews enforce it.
 _Avoid_: theme, preset; TOML for harness config
 
 **Solo**:
@@ -58,7 +58,7 @@ Local facts that never go in git: keys, hardware, tokengate vs personal, rapid-m
 _Avoid_: environment (overloaded)
 
 **Harness**:
-This repo: extensions, profiles, `pi-vida`, doctor. Host is Pi.
+This repo: extensions, profiles, `pi-vida`, doctor. Host is Pi. Harness root: `PI_VIDA_HOME`, else `PI_LIFE_HOME`, else `MY_PI_AGENT_HOME`, else the script dir. Active vida name: `PI_VIDA`, else `PI_LIFE`.
 _Avoid_: runtime, orchestrator, framework
 
 **Doctor**:
