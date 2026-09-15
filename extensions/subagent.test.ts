@@ -664,9 +664,7 @@ async function withPathPi<T>(
 		const files = writeFakePi(dir, mode);
 		const prevPath = process.env.PATH;
 		const prevTimeout = process.env.PI_CHILD_TIMEOUT_MS;
-		const prevBin = process.env.PI_CHILD_BIN;
 		process.env.PATH = `${dir}${delimiter}${prevPath ?? ""}`;
-		process.env.PI_CHILD_BIN = join(dir, "pi");
 		try {
 			return await fn({ dir, ...files });
 		} finally {
@@ -676,8 +674,6 @@ async function withPathPi<T>(
 			else process.env.PATH = prevPath;
 			if (prevTimeout === undefined) delete process.env.PI_CHILD_TIMEOUT_MS;
 			else process.env.PI_CHILD_TIMEOUT_MS = prevTimeout;
-			if (prevBin === undefined) delete process.env.PI_CHILD_BIN;
-			else process.env.PI_CHILD_BIN = prevBin;
 			rmSync(dir, { recursive: true, force: true });
 		}
 	};

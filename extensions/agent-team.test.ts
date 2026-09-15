@@ -88,11 +88,9 @@ async function withPathPi<T>(
 		const prevPath = process.env.PATH;
 		const prevTimeout = process.env.PI_CHILD_TIMEOUT_MS;
 		const prevTeam = process.env.PI_TEAM;
-		const prevBin = process.env.PI_CHILD_BIN;
 		const prevLife = process.env.PI_LIFE;
 		const prevHome = process.env.MY_PI_AGENT_HOME;
 		process.env.PATH = `${dir}${delimiter}${prevPath ?? ""}`;
-		process.env.PI_CHILD_BIN = join(dir, "pi");
 		delete process.env.PI_LIFE;
 		delete process.env.MY_PI_AGENT_HOME;
 		try {
@@ -105,8 +103,6 @@ async function withPathPi<T>(
 			else process.env.PI_CHILD_TIMEOUT_MS = prevTimeout;
 			if (prevTeam === undefined) delete process.env.PI_TEAM;
 			else process.env.PI_TEAM = prevTeam;
-			if (prevBin === undefined) delete process.env.PI_CHILD_BIN;
-			else process.env.PI_CHILD_BIN = prevBin;
 			if (prevLife === undefined) delete process.env.PI_LIFE;
 			else process.env.PI_LIFE = prevLife;
 			if (prevHome === undefined) delete process.env.MY_PI_AGENT_HOME;

@@ -427,7 +427,7 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 
 		const timeoutMs = childTimeoutMs();
 		result.exitCode = await new Promise<number>((resolve) => {
-			const proc = spawn(process.env.PI_CHILD_BIN || "pi", argv, {
+			const proc = spawn("pi", argv, {
 				cwd: opts.cwd ?? opts.defaultCwd,
 				shell: false,
 				detached: process.platform !== "win32",
@@ -453,7 +453,8 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 				}
 			};
 			// ChildProcess.killed only means a signal was sent, so escalation
-			// tracks the close/error event, not proc.killed.
+			// tracks the close/error event, not proc.killed. process.exit()
+			// skips the grace timer, so also SIGKILL on parent exit.
 			const killChild = () => {
 				signalTree("SIGTERM");
 				if (killTimer) clearTimeout(killTimer);
@@ -462,6 +463,10 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 					if (!closed) signalTree("SIGKILL");
 				}, KILL_GRACE_MS);
 			};
+			const onProcessExit = () => {
+				if (!closed) signalTree("SIGKILL");
+			};
+			process.on("exit", onProcessExit);
 			const onAbort = () => {
 				aborted = true;
 				killChild();
@@ -472,6 +477,7 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 					clearTimeout(killTimer);
 					killTimer = null;
 				}
+				process.removeListener("exit", onProcessExit);
 				opts.signal?.removeEventListener("abort", onAbort);
 			};
 			proc.stdout.on("data", (data) => {
