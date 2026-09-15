@@ -548,6 +548,11 @@ function selectChain(
 }
 
 export default function (pi: ExtensionAPI) {
+	const shutdown = new AbortController();
+	pi.on("session_shutdown", async () => {
+		shutdown.abort();
+	});
+
 	pi.registerCommand("chain-list", {
 		description:
 			"List available agent chains (YAML: .pi/agents, profiles/<life>/agents, profiles/agents)",
@@ -606,6 +611,7 @@ export default function (pi: ExtensionAPI) {
 					agents,
 					harnessRoot,
 					cwd: ctx.cwd,
+					signal: shutdown.signal,
 					dispatchModel,
 					dispatchThinkingLevel: ctx.thinkingLevel as string | undefined,
 				});
@@ -677,7 +683,7 @@ export default function (pi: ExtensionAPI) {
 					agents,
 					harnessRoot,
 					cwd: ctx.cwd,
-					signal,
+					signal: AbortSignal.any([signal, shutdown.signal]),
 					dispatchModel,
 					dispatchThinkingLevel: ctx.thinkingLevel as string | undefined,
 				});

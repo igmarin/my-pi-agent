@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { delimiter, join } from "node:path";
 import {
 	buildChildArgv,
+	childTimeoutMs,
+	DEFAULT_CHILD_TIMEOUT_MS,
 	dispatchOpts,
 	formatTokens,
 	formatUsageStats,
@@ -11,6 +16,7 @@ import {
 	parseSubagentLine,
 	PER_TASK_OUTPUT_CAP,
 	resultOutput,
+	runSingleAgent,
 	truncateAggregate,
 	truncateParallelOutput,
 	type RunOpts,
@@ -102,6 +108,9 @@ describe("isFailedResult", () => {
 	});
 	test("{exitCode: 0, stopReason: 'aborted'} is failed", () => {
 		expect(isFailedResult({ exitCode: 0, stopReason: "aborted" })).toBe(true);
+	});
+	test("{exitCode: 0, stopReason: 'timeout'} is failed", () => {
+		expect(isFailedResult({ exitCode: 0, stopReason: "timeout" })).toBe(true);
 	});
 	test("{exitCode: 0, stopReason: 'end'} is not failed (control)", () => {
 		expect(isFailedResult({ exitCode: 0, stopReason: "end" })).toBe(false);
@@ -458,6 +467,21 @@ describe("buildChildArgv — coverage of chain-mode args", () => {
 	});
 });
 
+describe("childTimeoutMs", () => {
+	test("default is 15 minutes", () => {
+		expect(childTimeoutMs({})).toBe(DEFAULT_CHILD_TIMEOUT_MS);
+		expect(DEFAULT_CHILD_TIMEOUT_MS).toBe(15 * 60 * 1000);
+	});
+	test("PI_CHILD_TIMEOUT_MS overrides when a positive number", () => {
+		expect(childTimeoutMs({ PI_CHILD_TIMEOUT_MS: "400" })).toBe(400);
+	});
+	test("invalid or non-positive values fall back to the default", () => {
+		expect(childTimeoutMs({ PI_CHILD_TIMEOUT_MS: "0" })).toBe(DEFAULT_CHILD_TIMEOUT_MS);
+		expect(childTimeoutMs({ PI_CHILD_TIMEOUT_MS: "-1" })).toBe(DEFAULT_CHILD_TIMEOUT_MS);
+		expect(childTimeoutMs({ PI_CHILD_TIMEOUT_MS: "nope" })).toBe(DEFAULT_CHILD_TIMEOUT_MS);
+	});
+});
+
 describe("dispatchOpts — per-role child dispatch", () => {
 	const base: RunOpts = {
 		agents: [],
@@ -545,4 +569,203 @@ describe("dispatchOpts — per-role child dispatch", () => {
 			});
 		});
 	});
+});
+
+// Spawn/kill tests use a PATH wrapper named `pi` (not a spawn mock) so
+// process-group kill is real. Unix process-group case is skipped on win32;
+// CI is Linux-only (ubuntu-latest).
+const KILL_GRACE_MS = 5_000;
+
+type FakePiMode = "ok" | "fail" | "sleep" | "ignore-term" | "fork";
+
+function writeFakePi(
+	dir: string,
+	mode: FakePiMode,
+): { pidFile: string; descFile: string } {
+	const pidFile = join(dir, "pid");
+	const descFile = join(dir, "desc");
+	const script = `#!/usr/bin/env bun
+import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
+const mode = ${JSON.stringify(mode)};
+const pidFile = ${JSON.stringify(pidFile)};
+const descFile = ${JSON.stringify(descFile)};
+try { writeFileSync(pidFile, String(process.pid)); } catch {}
+if (mode === "ok") {
+	console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "hello from child" }] } }));
+	process.exit(0);
+}
+if (mode === "fail") {
+	console.error("child failed");
+	process.exit(1);
+}
+if (mode === "ignore-term") {
+	process.on("SIGTERM", () => {});
+	await Bun.sleep(1e12);
+}
+if (mode === "fork") {
+	const child = spawn(process.execPath, ["-e", "process.on('SIGHUP', () => {}); setTimeout(() => {}, 1e12);"], { detached: false, stdio: "ignore" });
+	if (child.pid) try { writeFileSync(descFile, String(child.pid)); } catch {}
+	await Bun.sleep(1e12);
+}
+await Bun.sleep(1e12);
+`;
+	writeFileSync(join(dir, "pi"), script, { mode: 0o755 });
+	return { pidFile, descFile };
+}
+
+function pidFrom(file: string): number | undefined {
+	if (!existsSync(file)) return undefined;
+	const n = Number(readFileSync(file, "utf8").trim());
+	return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+function alive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function reap(pid: number | undefined): void {
+	if (!pid) return;
+	try {
+		process.kill(-pid, "SIGKILL");
+	} catch {
+		/* ignore */
+	}
+	try {
+		process.kill(pid, "SIGKILL");
+	} catch {
+		/* ignore */
+	}
+}
+
+async function waitFile(file: string, ms = 3_000): Promise<number> {
+	const start = Date.now();
+	while (Date.now() - start < ms) {
+		const pid = pidFrom(file);
+		if (pid) return pid;
+		await Bun.sleep(20);
+	}
+	throw new Error(`timed out waiting for ${file}`);
+}
+
+const gPath = globalThis as typeof globalThis & { __piFakePathChain?: Promise<unknown> };
+
+async function withPathPi<T>(
+	mode: FakePiMode,
+	fn: (files: { dir: string; pidFile: string; descFile: string }) => Promise<T>,
+): Promise<T> {
+	const run = async () => {
+		const dir = mkdtempSync(join(tmpdir(), "fake-pi-"));
+		const files = writeFakePi(dir, mode);
+		const prevPath = process.env.PATH;
+		const prevTimeout = process.env.PI_CHILD_TIMEOUT_MS;
+		const prevBin = process.env.PI_CHILD_BIN;
+		process.env.PATH = `${dir}${delimiter}${prevPath ?? ""}`;
+		process.env.PI_CHILD_BIN = join(dir, "pi");
+		try {
+			return await fn({ dir, ...files });
+		} finally {
+			reap(pidFrom(files.pidFile));
+			reap(pidFrom(files.descFile));
+			if (prevPath === undefined) delete process.env.PATH;
+			else process.env.PATH = prevPath;
+			if (prevTimeout === undefined) delete process.env.PI_CHILD_TIMEOUT_MS;
+			else process.env.PI_CHILD_TIMEOUT_MS = prevTimeout;
+			if (prevBin === undefined) delete process.env.PI_CHILD_BIN;
+			else process.env.PI_CHILD_BIN = prevBin;
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+	const prev = gPath.__piFakePathChain ?? Promise.resolve();
+	const curr = prev.then(run, run);
+	gPath.__piFakePathChain = curr.then(
+		() => {},
+		() => {},
+	);
+	return curr;
+}
+
+const dummyAgent = {
+	name: "builder",
+	description: "",
+	tools: [] as string[],
+	body: "",
+	source: "test",
+};
+
+function spawnOpts(over: Partial<RunOpts> = {}): RunOpts {
+	return {
+		agents: [dummyAgent],
+		agentName: "builder",
+		task: "t",
+		defaultCwd: process.cwd(),
+		harnessRoot: "/tmp/harness",
+		...over,
+	};
+}
+
+describe("runSingleAgent spawn/kill", () => {
+	test("timeout kills a sleeping fake pi and returns a failed timeout result", async () => {
+		await withPathPi("sleep", async () => {
+			process.env.PI_CHILD_TIMEOUT_MS = "400";
+			const started = Date.now();
+			const r = await runSingleAgent(spawnOpts());
+			expect(Date.now() - started).toBeLessThan(8_000);
+			expect(isFailedResult(r)).toBe(true);
+			expect(r.stopReason).toBe("timeout");
+		});
+	}, 10_000);
+
+	test("SIGTERM-ignore child is reaped by SIGKILL (fails if SIGKILL is gated on proc.killed)", async () => {
+		await withPathPi("ignore-term", async ({ pidFile }) => {
+			process.env.PI_CHILD_TIMEOUT_MS = "60000";
+			const ctl = new AbortController();
+			const pending = runSingleAgent(spawnOpts({ signal: ctl.signal }));
+			const pid = await waitFile(pidFile);
+			ctl.abort();
+			const started = Date.now();
+			const r = await pending;
+			expect(Date.now() - started).toBeLessThan(KILL_GRACE_MS + 3_000);
+			expect(isFailedResult(r)).toBe(true);
+			expect(r.stopReason).toBe("aborted");
+			expect(alive(pid)).toBe(false);
+		});
+	}, KILL_GRACE_MS + 5_000);
+
+	test.skipIf(process.platform === "win32")(
+		"process group: forked descendant is reaped (Unix-only; CI is Linux)",
+		async () => {
+			await withPathPi("fork", async ({ descFile }) => {
+				process.env.PI_CHILD_TIMEOUT_MS = "60000";
+				const ctl = new AbortController();
+				const pending = runSingleAgent(spawnOpts({ signal: ctl.signal }));
+				const desc = await waitFile(descFile);
+				ctl.abort();
+				const r = await pending;
+				expect(isFailedResult(r)).toBe(true);
+				await Bun.sleep(150);
+				expect(alive(desc)).toBe(false);
+			});
+		},
+		10_000,
+	);
+
+	test("AbortSignal takes the kill path", async () => {
+		await withPathPi("sleep", async ({ pidFile }) => {
+			process.env.PI_CHILD_TIMEOUT_MS = "60000";
+			const ctl = new AbortController();
+			const pending = runSingleAgent(spawnOpts({ signal: ctl.signal }));
+			const pid = await waitFile(pidFile);
+			ctl.abort();
+			const r = await pending;
+			expect(isFailedResult(r)).toBe(true);
+			expect(r.stopReason).toBe("aborted");
+			expect(alive(pid)).toBe(false);
+		});
+	}, 10_000);
 });

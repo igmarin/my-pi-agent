@@ -20,6 +20,17 @@ import { childMemorySection } from "./memoryHelpers.ts";
 export const MAX_PARALLEL_TASKS = 8;
 export const MAX_CONCURRENCY = 4;
 export const PER_TASK_OUTPUT_CAP = 50 * 1024;
+export const KILL_GRACE_MS = 5_000;
+export const DEFAULT_CHILD_TIMEOUT_MS = 15 * 60 * 1000;
+
+/** Wall-clock timeout for a child `pi`. Override with `PI_CHILD_TIMEOUT_MS`. */
+export function childTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+	const raw = env.PI_CHILD_TIMEOUT_MS;
+	if (raw == null || raw === "") return DEFAULT_CHILD_TIMEOUT_MS;
+	const n = Number(raw);
+	if (!Number.isFinite(n) || n <= 0) return DEFAULT_CHILD_TIMEOUT_MS;
+	return n;
+}
 // Aggregate cap on the synthesized parallel-mode tool output. At MAX_PARALLEL_TASKS
 // tasks each truncated to PER_TASK_OUTPUT_CAP, the joined summary would be ~400 KiB
 // — too large to paste as a context message. 200 KiB keeps the full picture when
@@ -131,7 +142,12 @@ export function getFinalOutput(messages: SubagentMessage[]): string {
 }
 
 export function isFailedResult(r: Pick<SingleResult, "exitCode" | "stopReason">): boolean {
-	return r.exitCode !== 0 || r.stopReason === "error" || r.stopReason === "aborted";
+	return (
+		r.exitCode !== 0 ||
+		r.stopReason === "error" ||
+		r.stopReason === "aborted" ||
+		r.stopReason === "timeout"
+	);
 }
 
 export function resultOutput(r: SingleResult): string {
@@ -402,20 +418,61 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 			if (i >= 0) argv.splice(i - 1, 2);
 		}
 
+		if (opts.signal?.aborted) {
+			result.exitCode = 1;
+			result.stopReason = "aborted";
+			result.errorMessage = "aborted by caller signal";
+			return result;
+		}
+
+		const timeoutMs = childTimeoutMs();
 		result.exitCode = await new Promise<number>((resolve) => {
-			const proc = spawn("pi", argv, {
+			const proc = spawn(process.env.PI_CHILD_BIN || "pi", argv, {
 				cwd: opts.cwd ?? opts.defaultCwd,
 				shell: false,
+				detached: process.platform !== "win32",
 				stdio: ["ignore", "pipe", "pipe"],
+				env: { ...process.env },
 			});
 			let buffer = "";
-			let killedBySignal = false;
+			let closed = false;
+			let timedOut = false;
+			let aborted = false;
 			let killTimer: ReturnType<typeof setTimeout> | null = null;
-			const clearKillTimer = () => {
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const signalTree = (sig: NodeJS.Signals) => {
+				try {
+					if (process.platform !== "win32" && proc.pid) process.kill(-proc.pid, sig);
+					else proc.kill(sig);
+				} catch {
+					try {
+						proc.kill(sig);
+					} catch {
+						/* ignore */
+					}
+				}
+			};
+			// ChildProcess.killed only means a signal was sent, so escalation
+			// tracks the close/error event, not proc.killed.
+			const killChild = () => {
+				signalTree("SIGTERM");
+				if (killTimer) clearTimeout(killTimer);
+				killTimer = setTimeout(() => {
+					killTimer = null;
+					if (!closed) signalTree("SIGKILL");
+				}, KILL_GRACE_MS);
+			};
+			const onAbort = () => {
+				aborted = true;
+				killChild();
+			};
+			const cleanup = () => {
+				if (timer) clearTimeout(timer);
 				if (killTimer) {
 					clearTimeout(killTimer);
 					killTimer = null;
 				}
+				opts.signal?.removeEventListener("abort", onAbort);
 			};
 			proc.stdout.on("data", (data) => {
 				buffer += data.toString();
@@ -427,13 +484,10 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 				result.stderr += data.toString();
 			});
 			proc.on("close", (code) => {
-				clearKillTimer();
+				closed = true;
 				if (buffer.trim()) parseSubagentLine(buffer, result);
-				// `code === null` means killed by signal (SIGTERM/SIGKILL/abort).
-				// In rare cases a child can be killed by signal and still deliver a
-				// non-null code, so we also check killedBySignal below.
-				const killed = code === null || killedBySignal;
-				if (killed) {
+				cleanup();
+				if (aborted) {
 					result.stopReason = "aborted";
 					result.errorMessage = opts.signal?.aborted
 						? "aborted by caller signal"
@@ -441,26 +495,35 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 					resolve(1);
 					return;
 				}
+				if (timedOut) {
+					result.stopReason = "timeout";
+					result.errorMessage = `timed out after ${timeoutMs}ms`;
+					resolve(1);
+					return;
+				}
+				if (code === null) {
+					result.stopReason = "aborted";
+					result.errorMessage = "killed by signal";
+					resolve(1);
+					return;
+				}
 				resolve(code);
 			});
 			proc.on("error", (err) => {
-				clearKillTimer();
+				closed = true;
+				cleanup();
 				result.errorMessage = err.message;
 				result.stderr = (result.stderr + err.message + "\n").trim();
 				resolve(1);
 			});
 			if (opts.signal) {
-				const kill = () => {
-					killedBySignal = true;
-					proc.kill("SIGTERM");
-					killTimer = setTimeout(() => {
-						if (!proc.killed) proc.kill("SIGKILL");
-						killTimer = null;
-					}, 5000);
-				};
-				if (opts.signal.aborted) kill();
-				else opts.signal.addEventListener("abort", kill, { once: true });
+				if (opts.signal.aborted) onAbort();
+				else opts.signal.addEventListener("abort", onAbort, { once: true });
 			}
+			timer = setTimeout(() => {
+				timedOut = true;
+				killChild();
+			}, timeoutMs);
 		});
 		return result;
 	} finally {

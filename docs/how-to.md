@@ -225,6 +225,7 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 | `rs-guard: Error occurred (exit 1)` / `Request timed out` | the review provider's API is unreachable — a transport failure, not a verdict | retry; bypass with `git commit --no-verify` while the provider is down |
 | `401: incorrect_api_key` when the agent speaks | the configured pi model's key is wrong or absent | `/model` to a working provider, or fix the key in pi's config |
 | write prompt missing on first boot | no UI (print/JSON mode) | boot TUI needs a terminal; run interactively once |
+| child `pi` still running after Escape / Ctrl+C / `/exit` | parent waited on a child that ignored SIGTERM, or a bash descendant was outside the process group | wait 5s for SIGKILL; leftover processes after that are a bug. Wall-clock kill is `PI_CHILD_TIMEOUT_MS` (default 15 minutes) |
 
 ## Environment variables
 
@@ -234,6 +235,7 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 | `PI_MEMORY_HOME` | shared memory root (default `<skills-root>/../memory`, i.e. `~/.agents/memory`) |
 | `MY_PI_AGENT_HOME` | harness root override (harness internal; default: the directory containing `pi-life`) |
 | `PI_TEAM` | active team in team mode |
+| `PI_CHILD_TIMEOUT_MS` | wall-clock timeout for chain/team/subagent child `pi` processes (default `900000` = 15 minutes). Failed result with `timeout` stopReason. |
 | `PI_LIFE` | exported to children; agent/chain discovery uses it (harness internal) |
 | `PI_OVERLAY` / `PI_OVERLAY_EXISTS` | launcher → extension overlay payload / first-launch skip flag (harness internal) |
 | `HERDR_ENV` | set by Herdr; enables the `herdr` skill and Herdr-scoped memory journals (`HERDR_WORKSPACE_ID`/`HERDR_PANE_ID`) |

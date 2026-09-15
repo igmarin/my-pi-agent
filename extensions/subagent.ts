@@ -33,13 +33,8 @@
  *
  * - `subagent.ts`        — this file. Glue: schema + mode dispatch + result shaping.
  * - `subagentHelpers.ts` — types, constants, pure helpers, child-process plumbing.
- * - `subagent.test.ts`   — `bun test` suite, 60+ cases, exercises every pure helper
- *                          and the JSON-line parser without spawning a `pi` child.
- *
- * The split is the project's "one file per concern" + testable-glue convention
- * (mirrors `agentScan.ts` + `agentScan.test.ts`). The orchestration in
- * `runSingleAgent` is integration-tested by `just smoke`, not by `bun test`
- * (mocking `spawn("pi", …)` would test the mock, not the code).
+ * - `subagent.test.ts`   — `bun test` suite: pure helpers, JSON-line parser, and
+ *                          spawn/kill via a PATH wrapper named `pi`.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
