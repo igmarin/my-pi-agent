@@ -12,7 +12,10 @@ const home = join(tmp, "home");
 
 afterEach(() => {
 	rmSync(tmp, { recursive: true, force: true });
+	delete process.env.PI_VIDA_HOME;
+	delete process.env.PI_LIFE_HOME;
 	delete process.env.MY_PI_AGENT_HOME;
+	delete process.env.PI_VIDA;
 	delete process.env.PI_LIFE;
 });
 
