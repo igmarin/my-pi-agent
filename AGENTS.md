@@ -4,7 +4,7 @@ This repo is the **pi-life** harness. Host is Pi. Run `pi-life` from the **targe
 
 Pointers (load when the branch fires):
 
-- `CONTEXT.md` — glossary (life, profile, mantra, overlay, tracker, chain, team, memory)
+- `CONTEXT.md` — glossary (life, profile, mantra, overlay, tracker, chain, team)
 - `docs/how-to.md` — task-oriented usage guide (install, launch, overlay, chains, teams, troubleshooting)
 - `README.md` — launch, install, rs-guard hook/CI
 - `ARCHITECTURE.md` — system boundary, launch pipeline, INV-skills, extension ownership
@@ -21,7 +21,6 @@ Pointers (load when the branch fires):
 - Extensions: `export default function (pi)`. Skip `ctx.ui` when `!ctx.hasUI`. Stacked `-e`: first extension wins the theme. `cross-agent` / `system-select` live under `extensions/` but are not passed by `pi-life` yet. `fusion` loads vendored `extensions/fusion-harness/` (MIT, disler/fusion-harness @ `01a3482`): `pi-life <life> fusion <stack.yaml>` passes `--fh-config`; stack `primary` is the host model (solo `--model`/`--thinking` dropped with a warning). Copy templates in `stacks/`; Cognition SWE setup in docs/how-to.md. Agent search: `profiles/<life>/agents/` (YAML), shared `profiles/agents/`, cwd `.pi/agents/`, then `.claude/.gemini/.codex` (cwd), then `~/.claude/.gemini/.codex`. First-wins on name. Alias `rails` → `ruby`.
 - Config for profiles/overlays/damage-control is YAML. Do not add TOML for those files. `yaml` npm is the parser.
 - Skills live under `PI_SKILLS_HOME` or `~/.agents/skills`. Do not vendor packs into this repo. A pack name resolves via `.dotskills-manifest.json` (`<pack>:<name>` identities, written by the dotskills installer) when present; a malformed manifest, a missing installed skill, or a resolver failure exits 2; a pack with no manifest entries falls back to the legacy `<skills-home>/<name>` dir.
-- Memory: `extensions/memory.ts` + `memoryHelpers.ts`; store at `PI_MEMORY_HOME` or `<skills-root>/../memory` (default `~/.agents/memory`; markdown, no lock). Primary writes, children read-only. Never inside a repo; never shell out to Herdr for scope.
 - Harness tasks: `bun` + `just`. Never add a `justfile` to a target repo. Proof: `just smoke` (no tokengate, no mlx).
 - Herdr is a host: `herdr agent start <name> --kind pi -- pi-life <life>`. Do not wrap Herdr in a Pi extension.
 - Boot config: first launch with no `.pi/capabilities.yaml` runs the `extensions/boot-config.ts` wizard (skips when `PI_OVERLAY_EXISTS=1` or no UI). Overlay `models.solo`/`thinking.solo` override profile `models:`/`thinking:` defaults into `pi --model`/`--thinking`; chain/team/subagent children dispatch with the merged per-role model/thinking (profile defaults under overlay overrides) keyed on the child's agent name (planner/builder/reviewer/researcher), falling back to the primary's current model.

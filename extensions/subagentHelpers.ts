@@ -15,7 +15,6 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { overlayFromEnv } from "./capabilities.ts";
 import type { AgentDef } from "./agentScan.ts";
-import { childMemorySection } from "./memoryHelpers.ts";
 
 export const MAX_PARALLEL_TASKS = 8;
 export const MAX_CONCURRENCY = 4;
@@ -201,8 +200,6 @@ export interface BuildChildArgvOptions {
 	agentTools?: string[];
 	dispatchModel?: string;
 	dispatchThinkingLevel?: string;
-	/** Read-only `<memory>` block appended to the task; children never write memory. */
-	memorySection?: string;
 }
 
 /**
@@ -228,8 +225,7 @@ export function buildChildArgv(harnessRoot: string, opts: BuildChildArgvOptions)
 	if (opts.agentSystemPrompt && opts.agentSystemPrompt.trim()) {
 		argv.push("--append-system-prompt", "<prompt-file>");
 	}
-	const mem = opts.memorySection?.trim();
-	argv.push(mem ? `Task: ${opts.task}\n\n${mem}` : `Task: ${opts.task}`);
+	argv.push(`Task: ${opts.task}`);
 	return argv;
 }
 
@@ -423,7 +419,6 @@ async function runSingleAgentOnce(opts: RunOpts): Promise<SingleResult> {
 	const { dispatchModel, dispatchThinkingLevel } = dispatchOpts(opts);
 	const argv = buildChildArgv(opts.harnessRoot, {
 		task: opts.task,
-		memorySection: childMemorySection(process.env, opts.cwd ?? opts.defaultCwd),
 		agentSystemPrompt: agent.body,
 		agentTools: agent.tools,
 		dispatchModel,

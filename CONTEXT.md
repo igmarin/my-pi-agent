@@ -99,10 +99,6 @@ _Avoid_: board, project (GitHub Project is a surface of the tracker)
 Terminal multiplexer that hosts parallel work: workspaces, panes, `herdr worktree`, and `herdr agent start <name> --kind pi -- pi-life <life>` as the way to start sibling lives. Herdr is a **host**, not something the harness wraps: no Pi extension shells out to it (issue #19). The `herdr` skill is on the mantra allowlist of every life but no-ops unless `HERDR_ENV=1`, so a plain terminal is unaffected. Doctor warns (never fails) when the `herdr` binary is off PATH.
 _Avoid_: multiplexer-as-host confusion (Herdr hosts Pi lives; Pi is the agent)
 
-**Memory**:
-Machine-local, plain-file store that survives Pi sessions and that other CLIs (Devin, Cline, Grok, Codex) can read and write — the format is append-only markdown with no lock. Root: `PI_MEMORY_HOME`, else `<skills-root>/../memory` (default `~/.agents/memory`). Layout per project id (from the git remote URL, else git toplevel, else cwd basename): `memory.md` (durable notes, markdown), `sessions/<timestamp>-<life>[-<herdr-scope>].md` (append-only journals). Under `HERDR_ENV=1` journals are additionally scoped by Herdr's `HERDR_WORKSPACE_ID`/`HERDR_PANE_ID` env vars (never by shelling out to `herdr`). `extensions/memory.ts` appends `<memory>` to the system prompt at `before_agent_start` and registers `remember`, `/remember`, `/recall`, `/session-note`; a missing store is empty memory (fail open). Only the primary session writes; chain/team/subagent children receive memory read-only in their task (`buildChildArgv`). Lives outside every repo; if a store is ever placed inside one, gitignore it. Implementation: `extensions/memory.ts` (glue) + `extensions/memoryHelpers.ts` (pure) + `extensions/memory.test.ts`.
-_Avoid_: RAG, vector store, knowledge base (memory is flat markdown, no embeddings); session (that is Pi's own transcript store under `.pi/agent-sessions/`)
-
 ## Config format
 
 Harness-authored files (profiles, overlay, chains, damage-control rules) are **YAML**. The harness already depends on `yaml` (npm) for damage-control rules. One format, one dependency. Do not add TOML for those files.

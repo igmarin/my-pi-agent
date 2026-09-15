@@ -25,11 +25,10 @@ flowchart LR
     PL -->|reads| OV[target repo<br/>.pi/capabilities.yaml<br/>project overlay]
     PL -->|resolves names| SH[(skills home<br/>~/.agents/skills<br/>+ .dotskills-manifest.json)]
     PL -->|exec| PI[pi process<br/>host agent runtime]
-    PI --> EXT[extensions/<br/>damage-control, memory,<br/>boot-config, capabilities,<br/>clarify-gate, mode ext]
+    PI --> EXT[extensions/<br/>damage-control, boot-config,<br/>capabilities, clarify-gate, mode ext]
     PI -->|reads/writes| REPO[target repo files]
     PI -->|spawns children| CHILD[child pi sessions<br/>chain steps, team members]
     CHILD -.->|always inherits| DC[damage-control + --no-skills]
-    EXT --> MEM[(memory store<br/>~/.agents/memory)]
     BOOT[scripts/skills-bootstrap.ts<br/>just skills] -->|clone/pull| GH[github.com owner/repo<br/>or local path]
     BOOT -->|symlink + manifest| SH
 ```
@@ -49,7 +48,7 @@ flowchart TD
     SH --> PL
     PL -->|exec argv| PI[pi host]
     PI --> EXT[extensions/*.ts]
-    EXT --> HELPERS[shared helpers:<br/>capabilities, agentScan,<br/>subagentHelpers, memoryHelpers,<br/>themeMap, argExpand]
+    EXT --> HELPERS[shared helpers:<br/>capabilities, agentScan,<br/>subagentHelpers,<br/>themeMap, argExpand]
     EXT --> PIAPI["@earendil-works/pi-coding-agent<br/>ExtensionAPI"]
 ```
 
@@ -75,7 +74,7 @@ sequenceDiagram
 
     U->>PL: pi-life ruby team
     PL->>PL: canonical_life (rails→ruby; ecto/rails-python exit 2)
-    PL->>PL: base argv: -e damage-control, memory, boot-config,<br/>capabilities, clarify-gate, --no-skills (+ mode ext)
+    PL->>PL: base argv: -e damage-control, boot-config,<br/>capabilities, clarify-gate, --no-skills (+ mode ext)
     PL->>B: read_profile(profiles/ruby.yaml)
     B-->>PL: TSV rows: kind⇥name[⇥value]
     loop each row
@@ -151,7 +150,6 @@ render UI check `ctx.hasUI` and no-op in print/JSON mode.
 | Extension | Owns | Does not own |
 |---|---|---|
 | `damage-control-continue.ts` | Tool-call gate: blocked tools get feedback, the turn continues (no `ctx.abort()`). Rules from `<cwd>/.pi/damage-control-rules.yaml` when present (project override), else harness `damage-control-rules.yaml`; an invalid project file warns and falls back. | Skill selection, launch args |
-| `memory.ts` + `memoryHelpers.ts` | Shared markdown memory store (`PI_MEMORY_HOME` or `<skills-root>/../memory`). `remember` tool, `/remember`, `/recall`, `/session-note`. Primary writes; children read-only via `buildChildArgv`. Fail-open. | Per-repo state, locking |
 | `boot-config.ts` | First-launch wizard: writes `.pi/capabilities.yaml` on confirm, updates `PI_OVERLAY` in-session, applies solo model/thinking. Skipped when `PI_OVERLAY_EXISTS=1` or no UI. | Overlay parsing (that is `capabilities.ts`) |
 | `capabilities.ts` | Overlay schema and parser (`parseOverlayDoc`, strict: unknown keys and non-booleans throw), role-map validation shared with `read_profile`, prompt-gate entry point. | Writing the overlay file |
 | `clarify-gate.ts` | Blocks `write`/`edit` until `/clarify`; read-only tools stay open. Per-session, opens permanently. Skipped without UI. | Prompt content (the `clarify` skill drives that) |
@@ -172,8 +170,7 @@ through `subagentHelpers.buildChildArgv`. The builder hard-codes
 argv tokens, so no caller can spawn an ungated child. Per-role model and
 thinking come from the merged `PI_OVERLAY` (profile defaults under overlay
 overrides), keyed on the child's agent name (`planner`, `builder`, `reviewer`,
-`researcher`), falling back to the primary's current model. Children get the
-memory store read-only; only the primary writes.
+`researcher`), falling back to the primary's current model.
 
 ## Trust boundaries and invariants
 

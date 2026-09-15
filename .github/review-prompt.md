@@ -95,7 +95,6 @@ This is a TypeScript/Bun + bash harness (`pi-life`), not a Rails app. Proof is `
 - Harness config is YAML (`profiles/<life>.yaml`). Do not introduce TOML for profiles/overlays/damage-control.
 - Extensions: `export default function (pi)`. Guard `ctx.ui` with `ctx.hasUI`. First `-e` wins stacked themes.
 - No secrets, `auth.json`, or `.env` in the diff; no reads of those from a target repo.
-- Memory stays machine-local and outside repos; only the primary session writes — children get it read-only.
 - Launch-invariant changes update `CONTEXT.md` and `just smoke`. Keep `README.md` short.
 
 **Ponytail (axis 4):** flag speculative maps, unused env flags, one-implementation abstractions, and docs that duplicate `CONTEXT.md`. Prefer delete.

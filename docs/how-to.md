@@ -172,25 +172,6 @@ pi-life ruby team
 PI_TEAM=fast pi-life ruby team    # override the active team (default: planner, builder, reviewer, researcher)
 ```
 
-## Shared memory (`/remember`, `/recall`)
-
-Every mode loads `extensions/memory.ts`. Memory is plain files on this machine, outside any repo, so Devin/Cline/Grok/Codex can read and write the same store:
-
-```
-${PI_MEMORY_HOME:-${PI_SKILLS_HOME%/*}/memory}   # default ~/.agents/memory
-└── <project-id>/                                # github.com-owner-repo (git remote), else toplevel/cwd basename
-    ├── memory.md                                # durable notes: "- YYYY-MM-DD note"
-    └── sessions/<ts>-<life>[-<herdr-scope>].md  # append-only per-session journal
-```
-
-- `remember` tool / `/remember <note>` — append a dated bullet to `memory.md`.
-- `/session-note <note>` — append to this session's journal.
-- `/recall` — print `memory.md` and the most recent journals.
-- On launch, `memory.md` plus the 3 newest journals are appended to the system prompt as `<memory>` (capped at 24 KiB). Missing store = empty memory; launch never fails on memory.
-- Chain/team/subagent children get the same block **read-only** inside their task — only the primary writes. Parallel Herdr panes are separate primaries: their journals stay race-free via the `-<herdr-scope>` filename suffix, and `memory.md` notes are small single-line appends (atomic on local filesystems; not guaranteed for concurrent writers on NFS).
-- **Herdr scoping**: with `HERDR_ENV=1`, journal names gain `-<workspace-id>-<pane-id>` from Herdr's `HERDR_WORKSPACE_ID`/`HERDR_PANE_ID` env vars (fallback `-herdr`). Nothing shells out to `herdr`.
-- Keep the store out of git. If you ever point `PI_MEMORY_HOME` inside a repo, add that path to `.gitignore` or your excludesfile.
-
 ## rs-guard review flow
 
 - **Pre-commit**: reviews **staged** files; `REQUEST_CHANGES` (exit 2) aborts the commit. Bypass: `git commit --no-verify`.
@@ -205,7 +186,7 @@ pi-life doctor           # machine + cwd health; sweeps every profile's skills (
 pi-life doctor ruby      # fail-closed preflight for the ruby life
 ```
 
-`doctor <life>` fails closed on missing `pi`/`bun` or missing mantra/tracker skill paths — the same contract the launcher enforces. Bare `doctor` sweeps all profiles and warns (deduped, exit 0) on missing mantra/tracker/pack skills so a fresh machine shows the gap before launch. Both modes still exit 2 on a malformed profile or `.dotskills-manifest.json` — a broken config is a launch failure, not a warning. Both warn on `just`, `rs-guard`, `ocr` (or `npx` to run it on demand), `herdr`, an absent memory root (`~/.agents/memory`, created on first `/remember`), and a missing/incomplete `git config --get core.excludesfile` (needs: `node_modules`, `.pi/agent-sessions/`, `.env`, `graphify-out/`, `.codegraph/`).
+`doctor <life>` fails closed on missing `pi`/`bun` or missing mantra/tracker skill paths — the same contract the launcher enforces. Bare `doctor` sweeps all profiles and warns (deduped, exit 0) on missing mantra/tracker/pack skills so a fresh machine shows the gap before launch. Both modes still exit 2 on a malformed profile or `.dotskills-manifest.json` — a broken config is a launch failure, not a warning. Both warn on `just`, `rs-guard`, `ocr` (or `npx` to run it on demand), `herdr`, and a missing/incomplete `git config --get core.excludesfile` (needs: `node_modules`, `.pi/agent-sessions/`, `.env`, `graphify-out/`, `.codegraph/`).
 
 Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life ruby`. The `herdr` skill is allowlisted everywhere but no-ops unless `HERDR_ENV=1`.
 
@@ -232,13 +213,12 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 | Var | Purpose |
 |---|---|
 | `PI_SKILLS_HOME` | skill root (default `~/.agents/skills`) |
-| `PI_MEMORY_HOME` | shared memory root (default `<skills-root>/../memory`, i.e. `~/.agents/memory`) |
 | `MY_PI_AGENT_HOME` | harness root override (harness internal; default: the directory containing `pi-life`) |
 | `PI_TEAM` | active team in team mode |
 | `PI_CHILD_TIMEOUT_MS` | wall-clock timeout for chain/team/subagent child `pi` processes (default `900000` = 15 minutes). Failed result with `timeout` stopReason. |
 | `PI_LIFE` | exported to children; agent/chain discovery uses it (harness internal) |
 | `PI_OVERLAY` / `PI_OVERLAY_EXISTS` | launcher → extension overlay payload / first-launch skip flag (harness internal) |
-| `HERDR_ENV` | set by Herdr; enables the `herdr` skill and Herdr-scoped memory journals (`HERDR_WORKSPACE_ID`/`HERDR_PANE_ID`) |
+| `HERDR_ENV` | set by Herdr; enables the `herdr` skill |
 | `DEEPSEEK_API_KEY` | rs-guard provider key (env or `~/.config/rs-guard/env`) |
 | `COGNITION_API_KEY` | Cognition SWE endpoint key for fusion stacks (`models.json` interpolates `$COGNITION_API_KEY`) |
 
