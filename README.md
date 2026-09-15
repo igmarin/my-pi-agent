@@ -1,22 +1,34 @@
 # my-pi-agent
 
-Personal [Pi](https://github.com/earendil-works/pi) harness. Glossary: [CONTEXT.md](CONTEXT.md). How-to: [docs/how-to.md](docs/how-to.md).
+`pi-life` launches the [Pi](https://github.com/earendil-works/pi) coding agent inside **your** repo with the skills, safety gate, and ticket tracker for the language you're working in:
+
+```sh
+cd path/to/your/repo
+pi-life ruby          # Rails app: Ruby skill packs + GitHub issue tracker
+pi-life rust          # Rust crate
+pi-life python        # pandas / FastAPI
+pi-life elixir        # Elixir/Phoenix (no ticket tracker configured)
+```
+
+- **First time:** `npm i -g @earendil-works/pi-coding-agent`, then `just install` ([Install](#install)).
+- **Daily:** `pi-life ruby chain` (plan → build → review), `pi-life ruby team` (dispatch to specialists), `pi-life doctor` (health check).
+- Glossary: [CONTEXT.md](CONTEXT.md). Full guide: [docs/how-to.md](docs/how-to.md).
 
 ## Launch
 
 From the **target repo**, not this one:
 
 ```text
-pi-life ruby               # Rails packs
-pi-life ruby chain
-pi-life ruby team
-pi-life ruby fusion .pi/fusion-harness/model-stack-trio.yaml  # 2-5 model stack
-pi-life python             # mantra only (pandas / FastAPI)
-pi-life elixir             # Elixir/Phoenix (no github-issue)
-pi-life rust
-pi-life --dry-run ruby     # print pi argv
-pi-life doctor             # machine + cwd overlay health
-pi-life doctor ruby         # same, plus ruby pack checks
+pi-life ruby               # Rails: Ruby skill packs + GitHub issue tracker
+pi-life ruby chain         # + plan → build → review
+pi-life ruby team          # + dispatch to planner/builder/reviewer/researcher
+pi-life ruby fusion .pi/fusion-harness/model-stack-trio.yaml  # + 2-5 model stack
+pi-life python             # pandas / FastAPI (no extra packs yet)
+pi-life elixir             # Elixir/Phoenix (no ticket tracker configured)
+pi-life rust               # Rust crate
+pi-life --dry-run ruby     # print the pi command it would run, launch nothing
+pi-life doctor             # health check for this machine + repo
+pi-life doctor ruby        # same, plus ruby pack checks
 ```
 
 Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` are not lives.
@@ -25,20 +37,14 @@ Aliases: `rails` → `ruby`, `phoenix` → `elixir`. `ecto` and `rails-python` a
 
 Every mode also loads the shared-memory extension (`remember`/`/remember`, `/recall`, `/session-note`) — see [docs/how-to.md](docs/how-to.md#shared-memory-remember-recall).
 
-### First launch (boot config)
+### First launch
 
-When a target repo has no `.pi/capabilities.yaml`, the first `pi-life` launch runs a wizard:
+On the first `pi-life` launch in a repo, two things happen:
 
-- Walks the six capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright).
-- Optionally sets per-role model and thinking defaults (solo, planner, builder, reviewer, researcher).
-- Writes the overlay only after you confirm; a cancelled prompt skips that step.
-- Skips entirely when the overlay already exists or no UI is available.
+- **Clarify gate** — `write`/`edit` are blocked until you run `/clarify` to accept the prompt. Read-only tools stay available.
+- **Boot config wizard** — when the repo has no `.pi/capabilities.yaml`, it walks the six capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright) and optional per-role model/thinking defaults (solo, planner, builder, reviewer, researcher), then writes the overlay only after you confirm. A cancelled prompt skips the write; no UI skips the wizard entirely.
 
-Later launches pass the overlay's solo `models`/`thinking` into `pi --model/--thinking`; chain/team/subagent children dispatch with the overlay's per-role `models`/`thinking` keyed on the child's agent name. `profiles/<life>.yaml` may carry optional `models:`/`thinking:` defaults that the overlay overrides. See CONTEXT.md (**Boot Config**, **Role**).
-
-### Rails-repo smoke
-
-`just smoke` ends with `just smoke-rails fixture`: it runs `pi-life --dry-run ruby` from a synthetic Rails repo and asserts the ruby pack argv — deterministic by default. `just smoke-rails` manually prefers a real repo discovered under `~/Developer` (`Gemfile` containing `gem "rails"`); `just smoke-rails ~/path/to/app` uses that repo and fails loudly (exit 1) if it has no `Gemfile`.
+Note: "clarify" names three different things (the `/clarify` command, the `clarify` skill, the `requirements-clarifier` skill) — see [docs/how-to.md](docs/how-to.md#first-launch-in-a-target-repo). The overlay's solo `models`/`thinking` become `pi --model`/`--thinking` on later launches; chain/team/subagent children dispatch with the per-role values keyed on the child's agent name. Details: [CONTEXT.md](CONTEXT.md) (**Boot Config**, **Role**).
 
 ## Install
 
@@ -56,7 +62,17 @@ Herdr is the host for parallel work: workspaces, panes, `herdr worktree`, and `h
 
 The `herdr` skill is on the mantra allowlist of every life. It no-ops unless `HERDR_ENV=1`, so a plain terminal is unaffected. `pi-life doctor` warns (never fails) when `herdr` is not on PATH. Prefer `herdr worktree` when already inside Herdr; `stacked-pr-worktree-workflow` stays for gh-stack PR topology.
 
-## Harness dev
+## Configuration
+
+- `CONTEXT.md` — domain glossary (lives, overlay, mantra).
+- `AGENTS.md` — project rules; auto-loaded by rs-guard as supplemental context.
+- `.github/review-prompt.md` — the review prompt used by both local and CI runs.
+- `.reviewer.toml` — rs-guard configuration (provider, model, timeout).
+- `.rs-guardignore` — paths excluded from review diffs.
+
+Harness profiles and project overlays are **YAML** (same parser as damage-control rules). See CONTEXT.md.
+
+## Developing this harness
 
 ```text
 bun install
@@ -68,7 +84,9 @@ just ext-system-select  # /system persona from discovered agents (profiles, .pi,
 just ext-damage-control # continue-variant safety rules
 ```
 
-## AI code review
+`just smoke` ends with `just smoke-rails fixture`: it runs `pi-life --dry-run ruby` from a synthetic Rails repo and asserts the ruby pack argv — deterministic by default. `just smoke-rails` manually prefers a real repo discovered under `~/Developer` (`Gemfile` containing `gem "rails"`); `just smoke-rails ~/path/to/app` uses that repo and fails loudly (exit 1) if it has no `Gemfile`.
+
+### AI code review
 
 This repository uses [rs-guard](https://github.com/nebulaideas/rs-guard) for automated code review, both as a pre-commit hook and as a GitHub Actions workflow on pull requests.
 
@@ -80,7 +98,7 @@ npx -y @alibaba-group/open-code-review
 
 `pi-life doctor` warns when neither `ocr` nor `npx` is available.
 
-### Pre-commit hook
+#### Pre-commit hook
 
 The hook is in `.githooks/pre-commit`. Activate it for this clone:
 
@@ -105,21 +123,11 @@ Bypass the hook when needed:
 git commit --no-verify
 ```
 
-### CI / GitHub Actions
+#### CI / GitHub Actions
 
 The workflow `.github/workflows/rs-guard-review.yml` runs on every non-draft pull request. It requires a `DEEPSEEK_API_KEY` repository secret and publishes a GitHub Check Run.
 
 > **Note:** `pull_request` workflows do not receive secrets from forks. Reviews run only for PRs from branches in this repo or for trusted collaborators.
-
-## Configuration
-
-- `CONTEXT.md` — domain glossary (lives, overlay, mantra).
-- `AGENTS.md` — project rules; auto-loaded by rs-guard as supplemental context.
-- `.github/review-prompt.md` — the review prompt used by both local and CI runs.
-- `.reviewer.toml` — rs-guard configuration (provider, model, timeout).
-- `.rs-guardignore` — paths excluded from review diffs.
-
-Harness profiles and project overlays are **YAML** (same parser as damage-control rules). See CONTEXT.md.
 
 ## Acknowledgments
 

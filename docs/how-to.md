@@ -9,8 +9,11 @@ Domain terms are in [CONTEXT.md](../CONTEXT.md); project rules in [AGENTS.md](..
 git clone git@github.com:igmarin/my-pi-agent.git && cd my-pi-agent
 npm i -g @earendil-works/pi-coding-agent   # the pi binary itself
 just install          # bun install + symlink pi-life onto ~/.local/bin
-git config core.hooksPath .githooks   # rs-guard pre-commit (or scripts/install-hooks.sh)
 ```
+
+That's all you need to *use* `pi-life` — launch it from your own repos, not from this clone.
+
+> Only if you're contributing to the harness itself: `git config core.hooksPath .githooks` (rs-guard pre-commit) or `scripts/install-hooks.sh`. Using `pi-life` in your own repos needs no hooks.
 
 Skills: every allowlisted mantra/pack/tracker name resolves to a directory under `PI_SKILLS_HOME` (default `~/.agents/skills`). Install packs with dotskills, or drop/symlink any directory containing a `SKILL.md` in there. Missing **required** paths — a mantra, or a tracker the profile configures — exit 2 at launch; a missing pack only warns and launch continues. A malformed `.dotskills-manifest.json` or a manifest entry missing its `SKILL.md` also exits 2.
 
@@ -25,18 +28,17 @@ cd ~/Work/my-rails-app
 pi-life ruby          # solo mode (default)
 ```
 
-First launch walks the boot-config wizard (`extensions/boot-config.ts`):
+Two things happen on the first launch in a repo:
 
-1. **Purpose gate** — declare what this session is for.
-2. **Clarify gate** — `write`/`edit` are blocked until you run `/clarify` to accept the prompt. Read-only tools stay available so the model can explore.
-3. **Boot TUI** (only when `.pi/capabilities.yaml` does not exist): the six capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright) and optional per-role model/thinking. Saving is explicit — a cancelled prompt skips the write.
+1. **Clarify gate** — `write`/`edit` are blocked until you run `/clarify` to accept the prompt. Read-only tools stay available so the model can explore. (Three different things share the word "clarify": the `/clarify` **command** opens the gate; the `clarify` **skill** and `requirements-clarifier` **skill** are the always-on mantra skills that help the model refine your prompt. Only the command is something you interact with directly.)
+2. **Boot TUI** (only when `.pi/capabilities.yaml` does not exist): the six capability toggles (graphify, codegraph, serena, rs-guard, obscura, playwright) and optional per-role model/thinking. Saving is explicit — a cancelled prompt skips the write.
 
 Second launch with a saved overlay: no TUI. The overlay's `models.solo`/`thinking.solo` become `pi --model`/`--thinking`.
 
 ## Daily driver: lives and modes
 
 ```sh
-pi-life ruby solo     # full toolset + status line (default)
+pi-life ruby solo     # full toolset + footer status line (default)
 pi-life ruby chain    # + /chain, /chain-list, run_chain tool
 pi-life ruby team     # dispatcher-only primary (dispatch_agent is the only tool)
 pi-life python        # mantra only (pandas / FastAPI)
@@ -52,9 +54,10 @@ Mode exclusivity is structural: solo loads the status line, chain loads the chai
 ## Model fusion
 
 ```sh
-# one-time per target repo: copy the template, then edit model:/thinking: per slot
-# (pi-life is a symlink — readlink resolves it to the harness clone where stacks/ lives)
-mkdir -p .pi/fusion-harness && cp "$(dirname "$(readlink "$(command -v pi-life)")")/../stacks/model-stack-trio.yaml" .pi/fusion-harness/
+# one-time per target repo: copy a stack template, then edit model:/thinking: per slot.
+# Templates live under stacks/ in the harness clone (e.g. ~/Work/my-pi-agent/stacks/).
+mkdir -p .pi/fusion-harness
+cp ~/Work/my-pi-agent/stacks/model-stack-trio.yaml .pi/fusion-harness/
 pi-life ruby fusion .pi/fusion-harness/model-stack-trio.yaml
 ```
 
@@ -218,10 +221,10 @@ Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life rub
 |---|---|
 | `PI_SKILLS_HOME` | skill root (default `~/.agents/skills`) |
 | `PI_MEMORY_HOME` | shared memory root (default `<skills-root>/../memory`, i.e. `~/.agents/memory`) |
-| `MY_PI_AGENT_HOME` | harness root override (default: the directory containing `pi-life`) |
+| `MY_PI_AGENT_HOME` | harness root override (harness internal; default: the directory containing `pi-life`) |
 | `PI_TEAM` | active team in team mode |
-| `PI_LIFE` | exported to children; agent/chain discovery uses it |
-| `PI_OVERLAY` / `PI_OVERLAY_EXISTS` | launcher → extension overlay payload / first-launch skip flag |
+| `PI_LIFE` | exported to children; agent/chain discovery uses it (harness internal) |
+| `PI_OVERLAY` / `PI_OVERLAY_EXISTS` | launcher → extension overlay payload / first-launch skip flag (harness internal) |
 | `HERDR_ENV` | set by Herdr; enables the `herdr` skill and Herdr-scoped memory journals (`HERDR_WORKSPACE_ID`/`HERDR_PANE_ID`) |
 | `DEEPSEEK_API_KEY` | rs-guard provider key (env or `~/.config/rs-guard/env`) |
 | `COGNITION_API_KEY` | Cognition SWE endpoint key for fusion stacks (`models.json` interpolates `$COGNITION_API_KEY`) |

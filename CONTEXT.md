@@ -2,6 +2,23 @@
 
 Personal Pi Coding Agent harness: pick a life, load the right extensions and skill packs, run in a target repo.
 
+## Quick reference
+
+| Term | One line |
+|---|---|
+| **life** | The language identity you launch: `rust`, `elixir`, `ruby`, or `python`. |
+| **profile** | `profiles/<life>.yaml` — the extensions, skill packs, mantra, and tracker for a life. |
+| **mantra** | Always-on skills every launch gets (listed in `profiles/<life>.yaml`): `i-have-adhd`, `ponytail`, `ponytail-review`, `deslop`, `clarify`, `requirements-clarifier`, `tdd`, `herdr`. |
+| **pack** | A group of optional skills for a life (e.g. Rails skills), allowlisted in the profile. |
+| **tracker** | Where tickets are created (usually `github-issue`). |
+| **overlay** | `.pi/capabilities.yaml` in the target repo — turns capabilities on/off per project. |
+| **capability** | An optional tool a project enables in its overlay (graphify, rs-guard, playwright, …). |
+| **chain** | A named sequence of roles (plan → build → review) run as child sessions. |
+| **team** | Dispatcher-only mode that hands work to named specialist agents. |
+| **fusion** | Multi-model mode: 2–5 models debate/collaborate in one session. |
+
+The table above is a non-normative quick reference; the entries below are the authoritative definitions (rs-guard treats them as such).
+
 ## Language
 
 **Life**:
@@ -15,7 +32,7 @@ Optional GraphQL or REST skill set loaded on a life. Not a fifth life.
 _Avoid_: calling GraphQL/REST a life
 
 **Profile**:
-Named launch config for a life: extensions, skill allowlist, tracker, provider class, model policy. Stored as YAML under `profiles/<life>.yaml`. Launch is `-e extensions/damage-control-continue.ts` then `--no-skills` then allowlisted `--skill`. **Solo mode also appends** `-e extensions/status-line.ts` (turn counter in the footer; chain/team do not load it). Invalid YAML, a missing mantra path, or a missing configured tracker path fails closed (exit 2). Omit tracker (elixir) or `tracker: none` = no tracker skill. Missing packs warn. Pack names resolve through `<skills-home>/.dotskills-manifest.json` (`<pack>:<name>` identities, written by the dotskills installer) when the manifest exists — a malformed manifest or a missing installed skill fails closed; a pack with no manifest entries falls back to `<skills-home>/<name>`. The profile's allowlist IS the INV-skills contract — launch fails closed when it can't be honored, and rs-guard reviews enforce it.
+Named launch config for a life: extensions, skill allowlist, tracker, provider class, model policy. Stored as YAML under `profiles/<life>.yaml`. Launch is `-e extensions/damage-control-continue.ts` then `--no-skills` then allowlisted `--skill`. **Solo mode also appends** `-e extensions/status-line.ts` (turn counter in the footer; chain/team do not load it). Invalid YAML, a missing mantra path, or a missing configured tracker path fails closed (exit 2). Omit tracker (elixir) or `tracker: none` = no tracker skill. Missing packs warn. Pack names resolve through `<skills-home>/.dotskills-manifest.json` (`<pack>:<name>` identities, written by the dotskills installer) when the manifest exists — a malformed manifest or a missing installed skill fails closed; a pack with no manifest entries falls back to `<skills-home>/<name>`. The profile's allowlist IS the INV-skills contract (the invariant skill set: damage-control gate + `--no-skills` + only allowlisted `--skill` paths) — launch fails closed when it can't be honored, and rs-guard reviews enforce it.
 _Avoid_: theme, preset; TOML for harness config
 
 **Solo**:
