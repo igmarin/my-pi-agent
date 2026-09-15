@@ -160,8 +160,8 @@ render UI check `ctx.hasUI` and no-op in print/JSON mode.
 | `agent-team.ts` | Dispatcher-only primary: `setActiveTools([dispatch_agent])` at `session_start` (pi 0.85 forbids action methods during load). Only members of the active team dispatch. | Chain execution |
 | `subagent.ts` + `subagentHelpers.ts` | `subagent` tool (single/parallel/chain modes) and `buildChildArgv`, the single place child `pi` argv is built. Not loaded by `pi-life` yet. | Primary-session tools |
 | `installed-skills.ts` | `.dotskills-manifest.json` schema check and pack→paths resolution CLI used by `resolve_pack_paths`. | Installing skills |
-| `agentScan.ts` | Agent/command/skill discovery order shared by `cross-agent`, `system-select`, `subagent`, `agent-chain`. | Launch policy |
-| `cross-agent.ts`, `system-select.ts`, `minimal.ts`, `purpose-gate.ts` | Standalone extensions, loadable via `pi -e` but not wired into `pi-life`. | - |
+| `agentScan.ts` | Agent/command/skill discovery for agent defs: `profiles/<life>/agents/` → `profiles/agents/` → cwd `.pi/` → `.claude/.gemini/.codex` fallbacks, first-wins on name. Shared by `cross-agent`, `system-select`, `subagent`, `agent-chain`. Note: the chain *file* itself uses `resolveChainFile`, whose order puts the project `.pi/agents/` first. | Launch policy |
+| `cross-agent.ts`, `system-select.ts`, `minimal.ts`, `purpose-gate.ts` | Standalone extensions, loadable via `pi -e` but not wired into `pi-life`. | Launch wiring |
 | `fusion-harness/` | Vendored multi-model stack runner (MIT, disler/fusion-harness). Stack `primary` slot becomes the host model. | Profile/overlay merging |
 
 ## Child sessions
