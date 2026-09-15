@@ -429,6 +429,26 @@ async function runGuardStep(
 	stepNo: number,
 	cwd: string,
 	signal?: AbortSignal,
+	shutdown?: AbortSignal,
+): Promise<string | null> {
+	const ac = new AbortController();
+	const stop = () => ac.abort();
+	if (signal?.aborted || shutdown?.aborted) ac.abort();
+	signal?.addEventListener("abort", stop, { once: true });
+	shutdown?.addEventListener("abort", stop, { once: true });
+	try {
+		return await runGuardStepBody(chainName, stepNo, cwd, ac.signal);
+	} finally {
+		signal?.removeEventListener("abort", stop);
+		shutdown?.removeEventListener("abort", stop);
+	}
+}
+
+async function runGuardStepBody(
+	chainName: string,
+	stepNo: number,
+	cwd: string,
+	signal?: AbortSignal,
 ): Promise<string | null> {
 	const hasBinary = Bun.which("rs-guard") != null;
 	let diff: string;
@@ -499,7 +519,8 @@ export async function runChainSteps(
 				chain.name,
 				i + 1,
 				opts.cwd,
-				opts.signal ?? opts.shutdown,
+				opts.signal,
+				opts.shutdown,
 			);
 			if (note) stepTask += `\n\n${note}`;
 		}
