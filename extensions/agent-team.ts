@@ -65,8 +65,11 @@ export function loadedTeams(cwd: string): {
 export default function (pi: ExtensionAPI) {
 	// Dispatcher-only primary: no read, write, edit, or bash. Mutual exclusion
 	// with chain/tilldone is structural — the launcher never loads those
-	// extensions in team mode.
-	pi.setActiveTools(["dispatch_agent"]);
+	// extensions in team mode. setActiveTools is an action method: it must run
+	// inside an event handler (session_start), not during extension loading.
+	pi.on("session_start", async () => {
+		pi.setActiveTools(["dispatch_agent"]);
+	});
 
 	pi.registerCommand("team-list", {
 		description: "List available agent teams (teams: key of agent-chain.yaml)",
