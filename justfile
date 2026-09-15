@@ -193,20 +193,21 @@ smoke:
     printf 'node_modules\n.pi/agent-sessions/\n.env\ngraphify-out/\n.codegraph/\n' >"${probe_ignore}"
     git -C "${probe_cwd}" config core.excludesfile "${probe_ignore}"
     status=0
-    out="$(cd "${probe_cwd}" && HOME="${probe_home}" GIT_CONFIG_NOSYSTEM=1 \
+    out="$(cd "${probe_cwd}" && HOME="${probe_home}" XDG_CONFIG_HOME="${probe_home}" GIT_CONFIG_NOSYSTEM=1 \
         "${bin}" doctor-probe 2>&1)" || status=$?
     test "${status}" -eq 0
     [[ "${out}" == *"excludesfile: ${probe_ignore} ok"* ]]
     printf 'node_modules\n.pi/agent-sessions/\ngraphify-out/\n.codegraph/\n' >"${probe_ignore}"
     status=0
-    out="$(cd "${probe_cwd}" && HOME="${probe_home}" GIT_CONFIG_NOSYSTEM=1 \
+    out="$(cd "${probe_cwd}" && HOME="${probe_home}" XDG_CONFIG_HOME="${probe_home}" GIT_CONFIG_NOSYSTEM=1 \
         "${bin}" doctor-probe 2>&1)" || status=$?
     test "${status}" -eq 1
     [[ "${out}" == *"missing patterns: .env"* ]]
-    # Unsetting the local value falls back to global, which is empty under the temp HOME.
+    # Unsetting the local value falls back to global, which is empty under the temp HOME
+    # (XDG_CONFIG_HOME too — git reads $XDG_CONFIG_HOME/git/ignore).
     git -C "${probe_cwd}" config --unset core.excludesfile
     status=0
-    out="$(cd "${probe_cwd}" && HOME="${probe_home}" GIT_CONFIG_NOSYSTEM=1 \
+    out="$(cd "${probe_cwd}" && HOME="${probe_home}" XDG_CONFIG_HOME="${probe_home}" GIT_CONFIG_NOSYSTEM=1 \
         "${bin}" doctor-probe 2>&1)" || status=$?
     test "${status}" -eq 1
     [[ "${out}" == *"missing patterns:"* ]]
@@ -648,7 +649,7 @@ smoke:
       }
       console.log("agent-chain default chain ok");
     '
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts" "{{root}}/extensions/installed-skills.test.ts" "{{root}}/extensions/fusion-harness/tests" "{{root}}/scripts/skills-bootstrap.test.ts"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/agent-team.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts" "{{root}}/extensions/installed-skills.test.ts" "{{root}}/extensions/fusion-harness/tests" "{{root}}/scripts/skills-bootstrap.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \

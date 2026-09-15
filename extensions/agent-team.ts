@@ -43,6 +43,7 @@ import {
 	resolveHarnessRoot,
 	resultOutput,
 	runSingleAgent,
+	drainInflight,
 	type SingleResult,
 } from "./subagentHelpers.ts";
 
@@ -63,6 +64,11 @@ export function loadedTeams(cwd: string): {
 }
 
 export default function (pi: ExtensionAPI) {
+	const shutdown = new AbortController();
+	pi.on("session_shutdown", async () => {
+		shutdown.abort();
+		await drainInflight();
+	});
 	// Dispatcher-only primary: no read, write, edit, or bash. Mutual exclusion
 	// with chain/tilldone is structural — the launcher never loads those
 	// extensions in team mode. setActiveTools is an action method: it must run
@@ -157,6 +163,7 @@ export default function (pi: ExtensionAPI) {
 				agentName,
 				task,
 				signal,
+				shutdown: shutdown.signal,
 				defaultCwd: ctx.cwd,
 				harnessRoot,
 				dispatchModel,

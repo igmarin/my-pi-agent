@@ -2,17 +2,17 @@
  * Tests for the agent-chain pure helpers.
  *
  * The YAML parse, precedence resolution, task-template rendering, and life
- * canonicalization are all pure and unit-tested here. Chain step execution
- * (spawning `pi`) is NOT covered here or by `just smoke` as of this change —
- * it reuses subagentHelpers.runSingleAgent, whose spawn path is exercised by
- * the subagent suite. Mocking spawn would test the mock, so step execution is
- * left to manual/end-to-end runs until the harness wires mode `chain`.
+ * canonicalization are all pure and unit-tested here. Spawn/kill of a chain
+ * child is covered by the session_shutdown case at the bottom (PATH wrapper
+ * named `pi`, same style as agent-team.test.ts). Unix process-group coverage
+ * lives in subagent.test.ts (CI is Linux-only).
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
+import chainExt from "./agent-chain.ts";
 import {
 	type ChainDef,
 	ChainError,
@@ -351,5 +351,177 @@ teams:
 	});
 	test("no teams at all throws", () => {
 		expect(() => pickTeam(new Map())).toThrow(/no teams defined/);
+	});
+});
+
+const gPath = globalThis as typeof globalThis & { __piFakePathChain?: Promise<unknown> };
+
+function pidFrom(file: string): number | undefined {
+	if (!existsSync(file)) return undefined;
+	const n = Number(readFileSync(file, "utf8").trim());
+	return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+function alive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function reap(pid: number | undefined): void {
+	if (!pid) return;
+	try {
+		process.kill(-pid, "SIGKILL");
+	} catch {
+		/* ignore */
+	}
+	try {
+		process.kill(pid, "SIGKILL");
+	} catch {
+		/* ignore */
+	}
+}
+
+async function waitFile(file: string, ms = 3_000): Promise<number> {
+	const start = Date.now();
+	while (Date.now() - start < ms) {
+		const pid = pidFrom(file);
+		if (pid) return pid;
+		await Bun.sleep(20);
+	}
+	throw new Error(`timed out waiting for ${file}`);
+}
+
+async function withSleepingPi<T>(
+	fn: (files: { pidFile: string }) => Promise<T>,
+): Promise<T> {
+	const run = async () => {
+		const dir = mkdtempSync(join(tmpdir(), "fake-pi-chain-"));
+		const pidFile = join(dir, "pid");
+		writeFileSync(
+			join(dir, "pi"),
+			`#!/usr/bin/env bun
+import { writeFileSync } from "node:fs";
+try { writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); } catch {}
+process.on("SIGTERM", () => {});
+await Bun.sleep(1e12);
+`,
+			{ mode: 0o755 },
+		);
+		const prevPath = process.env.PATH;
+		const prevTimeout = process.env.PI_CHILD_TIMEOUT_MS;
+		const prevLife = process.env.PI_LIFE;
+		const prevHome = process.env.MY_PI_AGENT_HOME;
+		process.env.PATH = `${dir}${delimiter}${prevPath ?? ""}`;
+		process.env.PI_CHILD_TIMEOUT_MS = "60000";
+		delete process.env.PI_LIFE;
+		delete process.env.MY_PI_AGENT_HOME;
+		try {
+			return await fn({ pidFile });
+		} finally {
+			reap(pidFrom(pidFile));
+			if (prevPath === undefined) delete process.env.PATH;
+			else process.env.PATH = prevPath;
+			if (prevTimeout === undefined) delete process.env.PI_CHILD_TIMEOUT_MS;
+			else process.env.PI_CHILD_TIMEOUT_MS = prevTimeout;
+			if (prevLife === undefined) delete process.env.PI_LIFE;
+			else process.env.PI_LIFE = prevLife;
+			if (prevHome === undefined) delete process.env.MY_PI_AGENT_HOME;
+			else process.env.MY_PI_AGENT_HOME = prevHome;
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+	const prev = gPath.__piFakePathChain ?? Promise.resolve();
+	const curr = prev.then(run, run);
+	gPath.__piFakePathChain = curr.then(
+		() => {},
+		() => {},
+	);
+	return curr;
+}
+
+describe("chain session_shutdown", () => {
+	test("aborts an in-flight step and reaps the child before shutdown returns", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "chain-cwd-"));
+		mkdirSync(join(cwd, ".pi", "agents"), { recursive: true });
+		writeFileSync(
+			join(cwd, ".pi", "agents", "agent-chain.yaml"),
+			"chains:\n  hang:\n    steps:\n      - agent: builder\n",
+		);
+		writeFileSync(
+			join(cwd, ".pi", "agents", "builder.yaml"),
+			"name: builder\ndescription: test\nbody: |\n  test\n",
+		);
+		try {
+			await withSleepingPi(async ({ pidFile }) => {
+				const tools: Record<string, { execute: Function }> = {};
+				const events: Record<string, Function> = {};
+				chainExt({
+					on(ev: string, h: Function) {
+						events[ev] = h;
+					},
+					registerCommand() {},
+					registerTool(def: { name: string; execute: Function }) {
+						tools[def.name] = def;
+					},
+				} as never);
+				const pending = tools.run_chain.execute(
+					"id",
+					{ chain: "hang", task: "hang" },
+					new AbortController().signal,
+					undefined,
+					{ cwd, hasUI: false, model: undefined, thinkingLevel: undefined },
+				);
+				const pid = await waitFile(pidFile);
+				await events.session_shutdown();
+				expect(alive(pid)).toBe(false);
+				const out = await pending;
+				expect(out.isError).toBe(true);
+			});
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
+	}, 12_000);
+
+	test("already-aborted signal does not spawn a child", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "chain-cwd-"));
+		mkdirSync(join(cwd, ".pi", "agents"), { recursive: true });
+		writeFileSync(
+			join(cwd, ".pi", "agents", "agent-chain.yaml"),
+			"chains:\n  hang:\n    steps:\n      - agent: builder\n",
+		);
+		writeFileSync(
+			join(cwd, ".pi", "agents", "builder.yaml"),
+			"name: builder\ndescription: test\nbody: |\n  test\n",
+		);
+		try {
+			await withSleepingPi(async ({ pidFile }) => {
+				const tools: Record<string, { execute: Function }> = {};
+				chainExt({
+					on() {},
+					registerCommand() {},
+					registerTool(def: { name: string; execute: Function }) {
+						tools[def.name] = def;
+					},
+				} as never);
+				const ac = new AbortController();
+				ac.abort();
+				const out = await tools.run_chain.execute(
+					"id",
+					{ chain: "hang", task: "hang" },
+					ac.signal,
+					undefined,
+					{ cwd, hasUI: false, model: undefined, thinkingLevel: undefined },
+				);
+				expect(out.isError).toBe(true);
+				expect(out.content[0].text).toMatch(/aborted/);
+				expect(pidFrom(pidFile)).toBeUndefined();
+			});
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
 	});
 });

@@ -74,6 +74,7 @@ import {
 	resolveHarnessRoot,
 	resultOutput,
 	runSingleAgent,
+	drainInflight,
 	type SingleResult,
 } from "./subagentHelpers.ts";
 
@@ -429,6 +430,26 @@ async function runGuardStep(
 	stepNo: number,
 	cwd: string,
 	signal?: AbortSignal,
+	shutdown?: AbortSignal,
+): Promise<string | null> {
+	const ac = new AbortController();
+	const stop = () => ac.abort();
+	if (signal?.aborted || shutdown?.aborted) ac.abort();
+	signal?.addEventListener("abort", stop, { once: true });
+	shutdown?.addEventListener("abort", stop, { once: true });
+	try {
+		return await runGuardStepBody(chainName, stepNo, cwd, ac.signal);
+	} finally {
+		signal?.removeEventListener("abort", stop);
+		shutdown?.removeEventListener("abort", stop);
+	}
+}
+
+async function runGuardStepBody(
+	chainName: string,
+	stepNo: number,
+	cwd: string,
+	signal?: AbortSignal,
 ): Promise<string | null> {
 	const hasBinary = Bun.which("rs-guard") != null;
 	let diff: string;
@@ -484,6 +505,7 @@ export async function runChainSteps(
 		harnessRoot: string;
 		cwd: string;
 		signal?: AbortSignal;
+		shutdown?: AbortSignal;
 		dispatchModel?: string;
 		dispatchThinkingLevel?: string;
 	},
@@ -491,10 +513,21 @@ export async function runChainSteps(
 	const results: SingleResult[] = [];
 	let previous = "";
 	for (let i = 0; i < chain.steps.length; i++) {
+		if (opts.signal?.aborted || opts.shutdown?.aborted) {
+			throw new ChainError(
+				`chain ${chain.name} stopped at step ${i + 1}: aborted`,
+			);
+		}
 		const step = chain.steps[i];
 		let stepTask = renderStepTask(step.task, task, previous);
 		if (step.rs_guard) {
-			const note = await runGuardStep(chain.name, i + 1, opts.cwd, opts.signal);
+			const note = await runGuardStep(
+				chain.name,
+				i + 1,
+				opts.cwd,
+				opts.signal,
+				opts.shutdown,
+			);
 			if (note) stepTask += `\n\n${note}`;
 		}
 		const r = await runSingleAgent({
@@ -503,6 +536,7 @@ export async function runChainSteps(
 			task: stepTask,
 			step: i + 1,
 			signal: opts.signal,
+			shutdown: opts.shutdown,
 			defaultCwd: opts.cwd,
 			harnessRoot: opts.harnessRoot,
 			dispatchModel: opts.dispatchModel,
@@ -548,6 +582,12 @@ function selectChain(
 }
 
 export default function (pi: ExtensionAPI) {
+	const shutdown = new AbortController();
+	pi.on("session_shutdown", async () => {
+		shutdown.abort();
+		await drainInflight();
+	});
+
 	pi.registerCommand("chain-list", {
 		description:
 			"List available agent chains (YAML: .pi/agents, profiles/<life>/agents, profiles/agents)",
@@ -606,6 +646,7 @@ export default function (pi: ExtensionAPI) {
 					agents,
 					harnessRoot,
 					cwd: ctx.cwd,
+					shutdown: shutdown.signal,
 					dispatchModel,
 					dispatchThinkingLevel: ctx.thinkingLevel as string | undefined,
 				});
@@ -678,6 +719,7 @@ export default function (pi: ExtensionAPI) {
 					harnessRoot,
 					cwd: ctx.cwd,
 					signal,
+					shutdown: shutdown.signal,
 					dispatchModel,
 					dispatchThinkingLevel: ctx.thinkingLevel as string | undefined,
 				});
