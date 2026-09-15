@@ -51,10 +51,11 @@ Note: "clarify" names three different things (the `/clarify` command, the `clari
 ```sh
 npm i -g @earendil-works/pi-coding-agent   # the pi binary
 just install                             # bun install + symlink pi-life onto ~/.local/bin
+just skills                              # provision ~/.agents/skills from packs.yaml
 just install-smoke                       # verify the symlink + --dry-run through it
 ```
 
-Skills resolve to directories under `~/.agents/skills` — install packs there before the first `pi-life <life>` or launch exits 2 on a missing required path (packs only warn). Full setup: [docs/how-to.md](docs/how-to.md#install).
+Skills resolve to directories under `~/.agents/skills`. `just skills` clones the repos in `packs.yaml`, symlinks each skill in, and writes `.dotskills-manifest.json` — without it, launch exits 2 on a missing required path (packs only warn). Full setup: [docs/how-to.md](docs/how-to.md#install).
 
 ## Herdr (host)
 

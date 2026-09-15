@@ -9,13 +9,14 @@ Domain terms are in [CONTEXT.md](../CONTEXT.md); project rules in [AGENTS.md](..
 git clone git@github.com:igmarin/my-pi-agent.git && cd my-pi-agent
 npm i -g @earendil-works/pi-coding-agent   # the pi binary itself
 just install          # bun install + symlink pi-life onto ~/.local/bin
+just skills           # provision ~/.agents/skills from packs.yaml
 ```
 
 That's all you need to *use* `pi-life` — launch it from your own repos, not from this clone.
 
 > Only if you're contributing to the harness itself: `git config core.hooksPath .githooks` (rs-guard pre-commit) or `scripts/install-hooks.sh`. Using `pi-life` in your own repos needs no hooks.
 
-Skills: every allowlisted mantra/pack/tracker name resolves to a directory under `PI_SKILLS_HOME` (default `~/.agents/skills`). Install packs with dotskills, or drop/symlink any directory containing a `SKILL.md` in there. Missing **required** paths — a mantra, or a tracker the profile configures — exit 2 at launch; a missing pack only warns and launch continues. A malformed `.dotskills-manifest.json` or a manifest entry missing its `SKILL.md` also exits 2.
+Skills: every allowlisted mantra/pack/tracker name resolves to a directory under `PI_SKILLS_HOME` (default `~/.agents/skills`). `just skills` is the supported bootstrap: it reads `packs.yaml` (allowlist name → `owner/repo`), clones each repo into `~/.local/share/pi-life/repos`, symlinks every `skills/<name>/SKILL.md` into the skills home, and writes `.dotskills-manifest.json` so pack names resolve to their installed skills. Re-run it after pulling the harness or adding a pack; it is idempotent and never overwrites a non-symlink dir. Manual alternative: install packs with dotskills, or drop/symlink any directory containing a `SKILL.md` in there. Missing **required** paths — a mantra, or a tracker the profile configures — exit 2 at launch; a missing pack only warns and launch continues. A malformed `.dotskills-manifest.json` or a manifest entry missing its `SKILL.md` also exits 2.
 
 Requirements: `pi` and `bun` on PATH (fail-closed, checked by `pi-life doctor`); optional `just`, `rs-guard`, `herdr` (warn only). The `DEEPSEEK_API_KEY` for rs-guard reviews lives in the environment or `~/.config/rs-guard/env` — never in a target repo.
 
@@ -190,11 +191,11 @@ ${PI_MEMORY_HOME:-${PI_SKILLS_HOME%/*}/memory}   # default ~/.agents/memory
 ## Doctor, excludesfile, herdr
 
 ```sh
-pi-life doctor           # machine + cwd health; prints the resolved overlay
-pi-life doctor ruby      # + checks ruby pack paths
+pi-life doctor           # machine + cwd health; sweeps every profile's skills (warn-only)
+pi-life doctor ruby      # fail-closed preflight for the ruby life
 ```
 
-`doctor` fails closed on missing `pi`/`bun` or missing mantra/tracker skill paths; warns on missing packs, `just`, `rs-guard`, `ocr` (or `npx` to run it on demand), `herdr`, an absent memory root (`~/.agents/memory`, created on first `/remember`), and a missing/incomplete `git config --get core.excludesfile` (needs: `node_modules`, `.pi/agent-sessions/`, `.env`, `graphify-out/`, `.codegraph/`).
+`doctor <life>` fails closed on missing `pi`/`bun` or missing mantra/tracker skill paths — the same contract the launcher enforces. Bare `doctor` sweeps all profiles and warns (deduped, exit 0) on missing mantra/tracker/pack skills so a fresh machine shows the gap before launch. Both modes still exit 2 on a malformed profile or `.dotskills-manifest.json` — a broken config is a launch failure, not a warning. Both warn on `just`, `rs-guard`, `ocr` (or `npx` to run it on demand), `herdr`, an absent memory root (`~/.agents/memory`, created on first `/remember`), and a missing/incomplete `git config --get core.excludesfile` (needs: `node_modules`, `.pi/agent-sessions/`, `.env`, `graphify-out/`, `.codegraph/`).
 
 Herdr hosts parallel lives: `herdr agent start reviewer --kind pi -- pi-life ruby`. The `herdr` skill is allowlisted everywhere but no-ops unless `HERDR_ENV=1`.
 

@@ -15,6 +15,11 @@ install:
     ln -sfn "{{root}}/bin/pi-life" "${HOME}/.local/bin/pi-life"
     echo "pi-life -> {{root}}/bin/pi-life"
 
+# Provision PI_SKILLS_HOME from packs.yaml: clone pack/skill repos, symlink
+# skills into ~/.agents/skills, write .dotskills-manifest.json. Idempotent.
+skills:
+    bun "{{root}}/scripts/skills-bootstrap.ts"
+
 # Verify the install symlink and a --dry-run through it (stub skills, no dotskills)
 install-smoke:
     #!/usr/bin/env bash
@@ -218,6 +223,37 @@ smoke:
     grep -q 'overlay:' <<<"${out}"
     grep -q 'required: ok' <<<"${out}"
     grep -q 'optional:' <<<"${out}"
+    # (i2) bare doctor sweeps every profile: missing required skills warn
+    # (deduped, exit 0) instead of silently passing — the sweep is advisory,
+    # `doctor <life>` stays fail-closed.
+    doc_empty_home="$(mktemp -d)"
+    status=0
+    out="$(cd "${doc_cwd}" && PI_SKILLS_HOME="${doc_empty_home}" "${bin}" doctor 2>&1)" || status=$?
+    test "${status}" -eq 0
+    grep -q 'warning: missing mantra requirements-clarifier' <<<"${out}"
+    grep -q 'warning: missing tracker github-issue' <<<"${out}"
+    grep -q 'warning: missing pack ruby-core-skills' <<<"${out}"
+    rm -rf "${doc_empty_home}"
+    # (n) just skills bootstrap -> manifest -> resolver round-trip: a fixture
+    # pack installed by skills-bootstrap.ts must resolve through
+    # resolve_pack_paths (the manifest schema the launcher consumes).
+    boot_src="$(mktemp -d)"
+    mkdir -p "${boot_src}/skills/fixture-skill"
+    printf '%s\n' '# fixture-skill' >"${boot_src}/skills/fixture-skill/SKILL.md"
+    boot_packs="$(mktemp)"
+    printf 'packs:\n  fixture-pack: %s\n' "${boot_src}" >"${boot_packs}"
+    boot_home="$(mktemp -d)"
+    boot_repos="$(mktemp -d)"
+    PACKS_YAML="${boot_packs}" PI_SKILLS_HOME="${boot_home}" PI_LIFE_REPOS="${boot_repos}" \
+      bun "${root}/scripts/skills-bootstrap.ts" >/dev/null
+    test -f "${boot_home}/.dotskills-manifest.json"
+    test -e "${boot_home}/fixture-skill/SKILL.md"
+    boot_prof="$(mktemp -d)"
+    mkdir -p "${boot_prof}/profiles"
+    printf '%s\n' 'life: ruby' 'tracker: none' 'packs: [fixture-pack]' 'mantra: []' >"${boot_prof}/profiles/ruby.yaml"
+    boot_out="$(cd "$(mktemp -d)" && MY_PI_AGENT_HOME="${boot_prof}" PI_SKILLS_HOME="${boot_home}" "${bin}" --dry-run ruby)"
+    grep -q -- "--skill ${boot_home}/fixture-skill" <<<"${boot_out}"
+    rm -rf "${boot_src}" "${boot_home}" "${boot_repos}" "${boot_prof}" "${boot_packs}"
     # (j) doctor <life> with packs missing -> exit 0, warnings named. Uses a
     # DEDICATED skills home that has every required mantra/tracker stubbed
     # (copied from ${tmp}) but no ruby packs, so the missing-pack warning
@@ -611,7 +647,7 @@ smoke:
       }
       console.log("agent-chain default chain ok");
     '
-    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts" "{{root}}/extensions/installed-skills.test.ts" "{{root}}/extensions/fusion-harness/tests"
+    bun test "{{root}}/extensions/agentScan.test.ts" "{{root}}/extensions/capabilities.test.ts" "{{root}}/extensions/boot-config.test.ts" "{{root}}/extensions/clarify-gate.test.ts" "{{root}}/extensions/agent-chain.test.ts" "{{root}}/extensions/subagent.test.ts" "{{root}}/extensions/memory.test.ts" "{{root}}/extensions/installed-skills.test.ts" "{{root}}/extensions/fusion-harness/tests" "{{root}}/scripts/skills-bootstrap.test.ts"
     bun build "{{root}}/extensions/themeMap.ts" "{{root}}/extensions/minimal.ts" "{{root}}/extensions/purpose-gate.ts" \
       "{{root}}/extensions/cross-agent.ts" "{{root}}/extensions/system-select.ts" \
       "{{root}}/extensions/damage-control-continue.ts" \

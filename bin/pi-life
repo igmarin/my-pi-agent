@@ -61,6 +61,64 @@ check_excludesfile() {
   return 0
 }
 
+# doctor <life> preflight for one profile. strict=1 fails closed (exit 2) on
+# missing mantra/tracker paths and malformed manifests — the same contract
+# the launcher enforces. strict=0 (bare `doctor` sweep over every profile)
+# accumulates gaps into the caller's `sweep_missing` map instead of warning
+# per life — the same mantra skill is required by every life, so per-life
+# warnings would repeat it. Mutates `optional` and `sweep_missing` via bash
+# dynamic scope.
+doctor_check_life() {
+  local life="$1" strict="$2" skills_home="$3" root="$4"
+  local doc_profile="${root}/profiles/${life}.yaml"
+  if [[ ! -f "${doc_profile}" ]]; then
+    if [[ "${strict}" -eq 1 ]]; then
+      printf 'pi-life: missing profile %s\n' "${doc_profile}" >&2
+      exit 2
+    fi
+    return 0
+  fi
+  local kind name
+  local profile_out profile_rc=0
+  profile_out="$(read_profile "${doc_profile}" "${root}")" || profile_rc=$?
+  if [[ "${profile_rc}" -ne 0 ]]; then
+    # Malformed profile YAML: fail closed in both modes — a broken profile
+    # breaks launches, not just doctor.
+    exit 2
+  fi
+  # read_profile prints "kind\tname" rows for mantra/pack/tracker.
+  # Mantra/tracker paths are launch-required (fail closed, exit 2 —
+  # same message add_named_skill prints), so doctor prefights them;
+  # packs only warn.
+  while IFS=$'\t' read -r kind name; do
+    [[ -z "${kind}" ]] && continue
+    case "${kind}" in
+      mantra|tracker)
+        if [[ ! -e "${skills_home}/${name}" ]]; then
+          if [[ "${strict}" -eq 1 ]]; then
+            printf 'pi-life: missing required %s %s (%s)\n' "${kind}" "${name}" "${skills_home}/${name}" >&2
+            exit 2
+          fi
+          sweep_missing["${kind} ${name}"]+="${life} "
+        fi
+        ;;
+      pack)
+        local pack_status=0
+        resolve_pack_paths "${skills_home}" "${name}" >/dev/null || pack_status=$?
+        [[ "$pack_status" -eq 2 ]] && exit 2
+        if [[ "$pack_status" -ne 0 ]]; then
+          if [[ "${strict}" -eq 1 ]]; then
+            doctor_warn "missing pack ${name} (${skills_home}/${name})"
+            optional=$((optional + 1))
+          else
+            sweep_missing["pack ${name}"]+="${life} "
+          fi
+        fi
+        ;;
+    esac
+  done <<< "${profile_out}"
+}
+
 # Real path of this script after following symlinks. Always resolves to the
 # actual checkout — unlike resolve_root it ignores MY_PI_AGENT_HOME, so
 # extension modules load from the harness even when the root is overridden.
@@ -555,41 +613,25 @@ main() {
       local optional=0
       local skills_home="${PI_SKILLS_HOME:-${HOME}/.agents/skills}"
       if [[ -n "${doc_life}" ]]; then
-        local doc_profile="${root}/profiles/${doc_life}.yaml"
-        if [[ ! -f "${doc_profile}" ]]; then
-          printf 'pi-life: missing profile %s\n' "${doc_profile}" >&2
-          exit 2
-        fi
-        local kind name
-        local profile_out profile_rc=0
-        profile_out="$(read_profile "${doc_profile}" "${root}")" || profile_rc=$?
-        if [[ "${profile_rc}" -ne 0 ]]; then
-          exit 2
-        fi
-        # read_profile prints "kind\tname" rows for mantra/pack/tracker.
-        # Mantra/tracker paths are launch-required (fail closed, exit 2 —
-        # same message add_named_skill prints), so doctor prefights them;
-        # packs only warn.
-        while IFS=$'\t' read -r kind name; do
-          [[ -z "${kind}" ]] && continue
-          case "${kind}" in
-            mantra|tracker)
-              if [[ ! -e "${skills_home}/${name}" ]]; then
-                printf 'pi-life: missing required %s %s (%s)\n' "${kind}" "${name}" "${skills_home}/${name}" >&2
-                exit 2
-              fi
-              ;;
-            pack)
-              local pack_status=0
-              resolve_pack_paths "${skills_home}" "${name}" >/dev/null || pack_status=$?
-              [[ "$pack_status" -eq 2 ]] && exit 2
-              if [[ "$pack_status" -ne 0 ]]; then
-                doctor_warn "missing pack ${name} (${skills_home}/${name})"
-                optional=$((optional + 1))
-              fi
-              ;;
-          esac
-        done <<< "${profile_out}"
+        doctor_check_life "${doc_life}" 1 "${skills_home}" "${root}"
+      else
+        # No life argument: sweep every profile and warn (never fail) on
+        # missing skills — a bare `doctor` must not report "required: ok"
+        # while a launch would exit 2. `doctor <life>` stays fail-closed;
+        # the sweep is advisory because users may only run a subset of
+        # lives. Deduped: one warning per skill, lives listed.
+        local sweep_profile sweep_name
+        local -A sweep_missing=()
+        for sweep_profile in "${root}"/profiles/*.yaml; do
+          [[ -e "${sweep_profile}" ]] || continue
+          sweep_name="${sweep_profile##*/}"; sweep_name="${sweep_name%.yaml}"
+          doctor_check_life "${sweep_name}" 0 "${skills_home}" "${root}"
+        done
+        local sweep_key
+        for sweep_key in "${!sweep_missing[@]}"; do
+          doctor_warn "missing ${sweep_key} (lives: ${sweep_missing[${sweep_key}]% }) — run just skills"
+          optional=$((optional + 1))
+        done
       fi
 
       if ! command -v just >/dev/null 2>&1; then
