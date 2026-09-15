@@ -513,6 +513,11 @@ export async function runChainSteps(
 	const results: SingleResult[] = [];
 	let previous = "";
 	for (let i = 0; i < chain.steps.length; i++) {
+		if (opts.signal?.aborted || opts.shutdown?.aborted) {
+			throw new ChainError(
+				`chain ${chain.name} stopped at step ${i + 1}: aborted`,
+			);
+		}
 		const step = chain.steps[i];
 		let stepTask = renderStepTask(step.task, task, previous);
 		if (step.rs_guard) {
