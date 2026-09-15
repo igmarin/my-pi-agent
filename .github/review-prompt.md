@@ -84,7 +84,7 @@ Pre-commit: `NEGATIVE` or any `[Critical]`/`[Security]` â†’ `REQUEST_CHANGES` â†
 
 ## Project-Specific Focus
 
-This is a TypeScript/Bun + bash harness (`pi-life`), not a Rails app. Proof is `just smoke`.
+This is a TypeScript/Bun + bash harness (`pi-vida`), not a Rails app. Proof is `just smoke`.
 
 **Must hold (shipped):**
 
