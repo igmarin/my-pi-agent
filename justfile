@@ -251,9 +251,10 @@ smoke:
     boot_prof="$(mktemp -d)"
     mkdir -p "${boot_prof}/profiles"
     printf '%s\n' 'life: ruby' 'tracker: none' 'packs: [fixture-pack]' 'mantra: []' >"${boot_prof}/profiles/ruby.yaml"
-    boot_out="$(cd "$(mktemp -d)" && MY_PI_AGENT_HOME="${boot_prof}" PI_SKILLS_HOME="${boot_home}" "${bin}" --dry-run ruby)"
+    boot_cwd="$(mktemp -d)"
+    boot_out="$(cd "${boot_cwd}" && MY_PI_AGENT_HOME="${boot_prof}" PI_SKILLS_HOME="${boot_home}" "${bin}" --dry-run ruby)"
     grep -q -- "--skill ${boot_home}/fixture-skill" <<<"${boot_out}"
-    rm -rf "${boot_src}" "${boot_home}" "${boot_repos}" "${boot_prof}" "${boot_packs}"
+    rm -rf "${boot_src}" "${boot_home}" "${boot_repos}" "${boot_prof}" "${boot_packs}" "${boot_cwd}"
     # (j) doctor <life> with packs missing -> exit 0, warnings named. Uses a
     # DEDICATED skills home that has every required mantra/tracker stubbed
     # (copied from ${tmp}) but no ruby packs, so the missing-pack warning
