@@ -484,6 +484,7 @@ export async function runChainSteps(
 		harnessRoot: string;
 		cwd: string;
 		signal?: AbortSignal;
+		shutdown?: AbortSignal;
 		dispatchModel?: string;
 		dispatchThinkingLevel?: string;
 	},
@@ -494,7 +495,12 @@ export async function runChainSteps(
 		const step = chain.steps[i];
 		let stepTask = renderStepTask(step.task, task, previous);
 		if (step.rs_guard) {
-			const note = await runGuardStep(chain.name, i + 1, opts.cwd, opts.signal);
+			const note = await runGuardStep(
+				chain.name,
+				i + 1,
+				opts.cwd,
+				opts.signal ?? opts.shutdown,
+			);
 			if (note) stepTask += `\n\n${note}`;
 		}
 		const r = await runSingleAgent({
@@ -503,6 +509,7 @@ export async function runChainSteps(
 			task: stepTask,
 			step: i + 1,
 			signal: opts.signal,
+			shutdown: opts.shutdown,
 			defaultCwd: opts.cwd,
 			harnessRoot: opts.harnessRoot,
 			dispatchModel: opts.dispatchModel,
@@ -611,7 +618,7 @@ export default function (pi: ExtensionAPI) {
 					agents,
 					harnessRoot,
 					cwd: ctx.cwd,
-					signal: shutdown.signal,
+					shutdown: shutdown.signal,
 					dispatchModel,
 					dispatchThinkingLevel: ctx.thinkingLevel as string | undefined,
 				});
@@ -683,7 +690,8 @@ export default function (pi: ExtensionAPI) {
 					agents,
 					harnessRoot,
 					cwd: ctx.cwd,
-					signal: AbortSignal.any([signal, shutdown.signal]),
+					signal,
+					shutdown: shutdown.signal,
 					dispatchModel,
 					dispatchThinkingLevel: ctx.thinkingLevel as string | undefined,
 				});

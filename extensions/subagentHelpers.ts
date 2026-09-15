@@ -341,6 +341,9 @@ export interface RunOpts {
 	cwd?: string;
 	step?: number;
 	signal?: AbortSignal;
+	/** Session-long abort (session_shutdown). Watched separately so we do not
+	 *  accumulate AbortSignal.any listeners on it per dispatch. */
+	shutdown?: AbortSignal;
 	defaultCwd: string;
 	harnessRoot: string;
 	dispatchModel?: string;
@@ -418,7 +421,7 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 			if (i >= 0) argv.splice(i - 1, 2);
 		}
 
-		if (opts.signal?.aborted) {
+		if (opts.signal?.aborted || opts.shutdown?.aborted) {
 			result.exitCode = 1;
 			result.stopReason = "aborted";
 			result.errorMessage = "aborted by caller signal";
@@ -479,6 +482,7 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 				}
 				process.removeListener("exit", onProcessExit);
 				opts.signal?.removeEventListener("abort", onAbort);
+				opts.shutdown?.removeEventListener("abort", onAbort);
 			};
 			proc.stdout.on("data", (data) => {
 				buffer += data.toString();
@@ -522,10 +526,13 @@ export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
 				result.stderr = (result.stderr + err.message + "\n").trim();
 				resolve(1);
 			});
-			if (opts.signal) {
-				if (opts.signal.aborted) onAbort();
-				else opts.signal.addEventListener("abort", onAbort, { once: true });
-			}
+			const watch = (sig?: AbortSignal) => {
+				if (!sig) return;
+				if (sig.aborted) onAbort();
+				else sig.addEventListener("abort", onAbort, { once: true });
+			};
+			watch(opts.signal);
+			watch(opts.shutdown);
 			timer = setTimeout(() => {
 				timedOut = true;
 				killChild();
