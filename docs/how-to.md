@@ -20,6 +20,16 @@ Skills: every allowlisted mantra/pack/tracker name resolves to a directory under
 
 Requirements: `pi` and `bun` on PATH (fail-closed, checked by `pi-life doctor`); optional `just`, `rs-guard`, `herdr` (warn only). The `DEEPSEEK_API_KEY` for rs-guard reviews lives in the environment or `~/.config/rs-guard/env` — never in a target repo.
 
+## Updating
+
+`~/.local/bin/pi-life` is a symlink into the clone, so `git pull` updates the code in place — no reinstall, no need to remove the command first.
+
+```sh
+git pull
+just install   # only if bun.lock changed, or you moved the clone (ln -sfn repoints the symlink)
+just skills    # re-provision skills if packs.yaml changed; idempotent
+```
+
 ## First launch in a target repo
 
 `pi-life` runs from the **target repo** (a Rails app, a Rust crate, whatever), not from the harness clone:
