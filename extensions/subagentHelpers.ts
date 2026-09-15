@@ -374,7 +374,37 @@ export function dispatchOpts(opts: RunOpts): {
 	};
 }
 
+const inflight = new Set<Promise<unknown>>();
+
+/** Wait until in-flight `runSingleAgent` calls settle. Snapshot only — abort
+ *  already flipped, so no new dispatch should start. Capped at grace+1s so a
+ *  stuck child cannot wedge shutdown (exit-handler SIGKILL is the backstop). */
+export async function drainInflight(): Promise<void> {
+	if (inflight.size === 0) return;
+	let t: ReturnType<typeof setTimeout> | undefined;
+	try {
+		await Promise.race([
+			Promise.allSettled([...inflight]),
+			new Promise<void>((r) => {
+				t = setTimeout(r, KILL_GRACE_MS + 1_000);
+			}),
+		]);
+	} finally {
+		if (t) clearTimeout(t);
+	}
+}
+
 export async function runSingleAgent(opts: RunOpts): Promise<SingleResult> {
+	const tracked = runSingleAgentOnce(opts);
+	inflight.add(tracked);
+	try {
+		return await tracked;
+	} finally {
+		inflight.delete(tracked);
+	}
+}
+
+async function runSingleAgentOnce(opts: RunOpts): Promise<SingleResult> {
 	const agent = opts.agents.find((a) => a.name === opts.agentName);
 	if (!agent) {
 		const available = opts.agents.map((a) => `"${a.name}"`).join(", ") || "none";

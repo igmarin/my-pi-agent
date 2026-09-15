@@ -74,6 +74,7 @@ import {
 	resolveHarnessRoot,
 	resultOutput,
 	runSingleAgent,
+	drainInflight,
 	type SingleResult,
 } from "./subagentHelpers.ts";
 
@@ -579,6 +580,7 @@ export default function (pi: ExtensionAPI) {
 	const shutdown = new AbortController();
 	pi.on("session_shutdown", async () => {
 		shutdown.abort();
+		await drainInflight();
 	});
 
 	pi.registerCommand("chain-list", {

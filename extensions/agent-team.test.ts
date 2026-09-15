@@ -262,9 +262,11 @@ describe("agent-team dispatch", () => {
 				);
 				const pid = await waitFile(pidFile);
 				await events.session_shutdown();
+				// Must be dead when shutdown returns — fails if the handler only
+				// abort()s and leaves SIGKILL on a timer the parent might not wait for.
+				expect(alive(pid)).toBe(false);
 				const out = await pending;
 				expect(out.isError).toBe(true);
-				expect(alive(pid)).toBe(false);
 			});
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });

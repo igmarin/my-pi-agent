@@ -43,6 +43,7 @@ import {
 	resolveHarnessRoot,
 	resultOutput,
 	runSingleAgent,
+	drainInflight,
 	type SingleResult,
 } from "./subagentHelpers.ts";
 
@@ -66,6 +67,7 @@ export default function (pi: ExtensionAPI) {
 	const shutdown = new AbortController();
 	pi.on("session_shutdown", async () => {
 		shutdown.abort();
+		await drainInflight();
 	});
 	// Dispatcher-only primary: no read, write, edit, or bash. Mutual exclusion
 	// with chain/tilldone is structural — the launcher never loads those
