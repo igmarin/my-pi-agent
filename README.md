@@ -66,6 +66,7 @@ The `herdr` skill is on the mantra allowlist of every life. It no-ops unless `HE
 ## Configuration
 
 - `CONTEXT.md` — domain glossary (lives, overlay, mantra).
+- `ARCHITECTURE.md` — how the launcher, profiles, skills home, and extensions connect (with diagrams).
 - `AGENTS.md` — project rules; auto-loaded by rs-guard as supplemental context.
 - `.github/review-prompt.md` — the review prompt used by both local and CI runs.
 - `.reviewer.toml` — rs-guard configuration (provider, model, timeout).

@@ -7,6 +7,7 @@ Pointers (load when the branch fires):
 - `CONTEXT.md` — glossary (life, profile, mantra, overlay, tracker, chain, team, memory)
 - `docs/how-to.md` — task-oriented usage guide (install, launch, overlay, chains, teams, troubleshooting)
 - `README.md` — launch, install, rs-guard hook/CI
+- `ARCHITECTURE.md` — system boundary, launch pipeline, INV-skills, extension ownership
 - `.github/review-prompt.md` — rs-guard axes, severity, verdict metadata
 
 ## Shipped
